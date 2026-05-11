@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+from enum import Enum, auto
+
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
+FPS = 60
+
+BOARD_SIZE = 8
+TILE_SIZE = 68
+BOARD_PIXEL_SIZE = BOARD_SIZE * TILE_SIZE
+BOARD_ORIGIN = (28, 66)
+
+SIDEBAR_X = 590
+SIDEBAR_Y = 42
+SIDEBAR_WIDTH = 664
+SIDEBAR_HEIGHT = 628
+
+INFO_PANEL_RECT = (SIDEBAR_X + 18, SIDEBAR_Y + 114, 628, 220)
+ACTION_PANEL_RECT = (SIDEBAR_X + 18, SIDEBAR_Y + 350, 628, 124)
+LOG_PANEL_RECT = (SIDEBAR_X + 18, SIDEBAR_Y + 490, 628, 152)
+
+MOVE_BUTTON = (SIDEBAR_X + 34, SIDEBAR_Y + 396, 182, 42)
+ATTACK_BUTTON = (SIDEBAR_X + 241, SIDEBAR_Y + 396, 182, 42)
+SKILL_BUTTON = (SIDEBAR_X + 448, SIDEBAR_Y + 396, 182, 42)
+END_TURN_BUTTON = (SIDEBAR_X + 446, SIDEBAR_Y + 26, 184, 36)
+
+BACKGROUND_COLOR = (15, 19, 30)
+PANEL_COLOR = (24, 30, 46)
+PANEL_BORDER = (62, 76, 104)
+TEXT_COLOR = (235, 240, 255)
+SUBTEXT_COLOR = (165, 176, 204)
+GRID_LIGHT = (70, 82, 102)
+GRID_DARK = (48, 58, 75)
+MOVE_HIGHLIGHT = (74, 200, 141, 170)
+ATTACK_HIGHLIGHT = (233, 92, 92, 180)
+SKILL_HIGHLIGHT = (247, 196, 88, 180)
+SELECT_HIGHLIGHT = (255, 255, 255, 180)
+BLUE_TEAM = (76, 150, 255)
+RED_TEAM = (255, 104, 104)
+BUTTON_COLOR = (55, 68, 92)
+BUTTON_ACTIVE = (87, 115, 160)
+BUTTON_DISABLED = (45, 50, 58)
+LOG_PANEL_BG = (18, 23, 36)
+LOG_SCROLLBAR_BG = (44, 52, 72)
+LOG_SCROLLBAR_FG = (120, 144, 196)
+HP_BAR_BG = (35, 40, 52)
+HP_BAR_FILL = (82, 211, 128)
+HP_BAR_LOW = (228, 95, 95)
+OBSTACLE_COLOR = (88, 96, 116)
+OBSTACLE_EDGE = (138, 148, 176)
+
+
+class Team(Enum):
+    PLAYER = auto()
+    AI = auto()
+
+
+class GameState(Enum):
+    PLAYER_TURN = auto()
+    PLAYER_ANIM = auto()
+    AI_TURN = auto()
+    AI_ANIM = auto()
+    GAME_OVER = auto()
+
+
+class ActionMode(Enum):
+    MOVE = auto()
+    ATTACK = auto()
+    SKILL = auto()
+
+
+class UnitType(Enum):
+    KING = auto()
+    SWORDMAN = auto()
+    ARCHER = auto()
+    MAGE = auto()
+
+
+TEAM_NAMES = {
+    Team.PLAYER: '청팀',
+    Team.AI: '홍팀',
+}
+
+UNIT_DISPLAY_NAMES = {
+    UnitType.KING: '왕',
+    UnitType.SWORDMAN: '검사',
+    UnitType.ARCHER: '궁수',
+    UnitType.MAGE: '마법사',
+}
