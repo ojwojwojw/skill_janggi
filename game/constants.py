@@ -9,21 +9,21 @@ FPS = 60
 BOARD_SIZE = 8
 TILE_SIZE = 68
 BOARD_PIXEL_SIZE = BOARD_SIZE * TILE_SIZE
-BOARD_ORIGIN = (28, 66)
+BOARD_ORIGIN = (252, 66)
 
-SIDEBAR_X = 590
+SIDEBAR_X = 812
 SIDEBAR_Y = 42
-SIDEBAR_WIDTH = 664
-SIDEBAR_HEIGHT = 628
+SIDEBAR_WIDTH = 440
+SIDEBAR_HEIGHT = 568
 
-INFO_PANEL_RECT = (SIDEBAR_X + 18, SIDEBAR_Y + 114, 628, 220)
-ACTION_PANEL_RECT = (SIDEBAR_X + 18, SIDEBAR_Y + 350, 628, 124)
-LOG_PANEL_RECT = (SIDEBAR_X + 18, SIDEBAR_Y + 490, 628, 152)
+INFO_PANEL_RECT = (SIDEBAR_X + 16, SIDEBAR_Y + 124, 408, 268)
+ACTION_PANEL_RECT = (SIDEBAR_X + 16, SIDEBAR_Y + 434, 408, 124)
+LOG_PANEL_RECT = (28, 66, 210, 544)
 
-MOVE_BUTTON = (SIDEBAR_X + 34, SIDEBAR_Y + 396, 182, 42)
-ATTACK_BUTTON = (SIDEBAR_X + 241, SIDEBAR_Y + 396, 182, 42)
-SKILL_BUTTON = (SIDEBAR_X + 448, SIDEBAR_Y + 396, 182, 42)
-END_TURN_BUTTON = (SIDEBAR_X + 446, SIDEBAR_Y + 26, 184, 36)
+MOVE_BUTTON = (SIDEBAR_X + 22, SIDEBAR_Y + 474, 92, 36)
+ATTACK_BUTTON = (SIDEBAR_X + 122, SIDEBAR_Y + 474, 92, 36)
+SKILL_BUTTON = (SIDEBAR_X + 222, SIDEBAR_Y + 474, 92, 36)
+END_TURN_BUTTON = (SIDEBAR_X + 322, SIDEBAR_Y + 474, 92, 36)
 
 BACKGROUND_COLOR = (15, 19, 30)
 PANEL_COLOR = (24, 30, 46)
@@ -49,6 +49,11 @@ HP_BAR_FILL = (82, 211, 128)
 HP_BAR_LOW = (228, 95, 95)
 OBSTACLE_COLOR = (88, 96, 116)
 OBSTACLE_EDGE = (138, 148, 176)
+RIVER_TILE = (56, 118, 190)
+RIVER_TILE_DARK = (35, 82, 144)
+
+DRAFT_BUDGET = 17
+DRAFT_SIZE = 7
 
 
 class Team(Enum):
@@ -58,9 +63,7 @@ class Team(Enum):
 
 class GameState(Enum):
     PLAYER_TURN = auto()
-    PLAYER_ANIM = auto()
     AI_TURN = auto()
-    AI_ANIM = auto()
     GAME_OVER = auto()
 
 
@@ -75,16 +78,57 @@ class UnitType(Enum):
     SWORDMAN = auto()
     ARCHER = auto()
     MAGE = auto()
+    KNIGHT = auto()
+    BISHOP = auto()
+    LANCER = auto()
 
 
 TEAM_NAMES = {
-    Team.PLAYER: '청팀',
-    Team.AI: '홍팀',
+    Team.PLAYER: "청",
+    Team.AI: "흑",
 }
 
 UNIT_DISPLAY_NAMES = {
-    UnitType.KING: '왕',
-    UnitType.SWORDMAN: '검사',
-    UnitType.ARCHER: '궁수',
-    UnitType.MAGE: '마법사',
+    UnitType.KING: "왕",
+    UnitType.SWORDMAN: "검사",
+    UnitType.ARCHER: "궁수",
+    UnitType.MAGE: "술사",
+    UnitType.KNIGHT: "기마",
+    UnitType.BISHOP: "비숍",
+    UnitType.LANCER: "창병",
 }
+
+UNIT_COSTS = {
+    UnitType.SWORDMAN: 2,
+    UnitType.ARCHER: 2,
+    UnitType.MAGE: 3,
+    UnitType.KNIGHT: 4,
+    UnitType.LANCER: 3,
+    UnitType.BISHOP: 5,
+}
+
+UNIT_DRAFT_BLURBS = {
+    UnitType.SWORDMAN: "직선 이동과 돌진.",
+    UnitType.ARCHER: "후방 견제 사격.",
+    UnitType.MAGE: "광역 폭발 제압.",
+    UnitType.KNIGHT: "도약 진입과 밀치기.",
+    UnitType.LANCER: "직선 돌파와 찌르기.",
+    UnitType.BISHOP: "대각 장거리 압박.",
+}
+
+UNIT_GLYPHS = {
+    UnitType.KING: "K",
+    UnitType.SWORDMAN: "S",
+    UnitType.ARCHER: "A",
+    UnitType.MAGE: "M",
+    UnitType.KNIGHT: "N",
+    UnitType.BISHOP: "B",
+    UnitType.LANCER: "L",
+}
+
+DRAFT_POOL = [
+    UnitType.SWORDMAN,
+    UnitType.ARCHER,
+    UnitType.KNIGHT,
+    UnitType.BISHOP,
+]

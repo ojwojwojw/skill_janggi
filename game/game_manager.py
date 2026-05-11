@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,7 +7,19 @@ import pygame
 
 from game.ai import SimpleAI
 from game.board import Board, Position
-from game.constants import ATTACK_BUTTON, END_TURN_BUTTON, LOG_PANEL_RECT, MOVE_BUTTON, SKILL_BUTTON, ActionMode, GameState, Team, TEAM_NAMES, UNIT_DISPLAY_NAMES, UnitType
+from game.constants import (
+    ATTACK_BUTTON,
+    END_TURN_BUTTON,
+    LOG_PANEL_RECT,
+    MOVE_BUTTON,
+    SKILL_BUTTON,
+    ActionMode,
+    GameState,
+    Team,
+    TEAM_NAMES,
+    UNIT_DISPLAY_NAMES,
+    UnitType,
+)
 from game.skill import SKILLS
 from game.unit import Unit
 
@@ -15,6 +27,21 @@ ACTION_BUTTONS = {
     ActionMode.MOVE: pygame.Rect(*MOVE_BUTTON),
     ActionMode.ATTACK: pygame.Rect(*ATTACK_BUTTON),
     ActionMode.SKILL: pygame.Rect(*SKILL_BUTTON),
+}
+
+PLAYER_KING_POS = (3, 7)
+AI_KING_POS = (4, 0)
+PLAYER_DEPLOY_POSITIONS = [(0, 7), (2, 7), (5, 7), (7, 7), (1, 6), (4, 6), (6, 6)]
+AI_DEPLOY_POSITIONS = [(7, 0), (5, 0), (2, 0), (0, 0), (6, 1), (3, 1), (1, 1)]
+
+BASE_HP = {
+    UnitType.KING: 8,
+    UnitType.SWORDMAN: 5,
+    UnitType.ARCHER: 4,
+    UnitType.MAGE: 4,
+    UnitType.KNIGHT: 5,
+    UnitType.BISHOP: 4,
+    UnitType.LANCER: 5,
 }
 
 
@@ -25,43 +52,67 @@ class ClickContext:
 
 
 class GameManager:
-    def __init__(self, project_root: Path, blocked_tiles: set[Position] | None = None) -> None:
+    def __init__(
+        self,
+        project_root: Path,
+        blocked_tiles: set[Position] | None = None,
+        player_roster: list[UnitType] | None = None,
+        ai_roster: list[UnitType] | None = None,
+        ai_difficulty: int = 3,
+        map_name: str = "classic",
+    ) -> None:
         self.project_root = project_root
+        self.map_name = map_name
         self.board = Board(blocked_tiles=set(blocked_tiles or set()))
-        self.units = self._create_units()
-        self.ai = SimpleAI()
+        self.units = self._create_units(player_roster or self._default_roster(), ai_roster or self._default_roster())
+        self.ai = SimpleAI(ai_difficulty)
         self.state = GameState.PLAYER_TURN
         self.action_mode = ActionMode.MOVE
         self.selected_unit_id: str | None = None
+        self.inspected_unit_id: str | None = None
+        self.activation_unit_id: str | None = None
+        self.activation_move_used = False
+        self.activation_action_used = False
         self.current_turn = Team.PLAYER
         self.turn_count = 1
         self.winner: Team | None = None
-        self.logs: list[str] = ["전투 시작. 청팀부터 시작합니다."]
+        self.logs: list[str] = ["전투가 시작되었습니다. 청 진영이 선공입니다."]
         self.log_scroll = 0
-        self.ai_delay = 0.7
+        self.sound_events: list[str] = []
+        self.ai_delay = 0.65
         self.ai_timer = 0.0
-        self.last_feedback = "유닛을 클릭한 뒤 이동, 공격, 스킬 중 하나를 선택하세요."
+        self.last_feedback = "아군 유닛을 선택한 뒤 이동, 공격 또는 스킬을 고르세요."
         self.effects: list[dict[str, object]] = []
         self.end_turn_warning_armed = False
         self.end_turn_rect = pygame.Rect(*END_TURN_BUTTON)
         self.log_panel_rect = pygame.Rect(*LOG_PANEL_RECT)
         self.start_turn(Team.PLAYER, opening=True)
 
-    def _create_units(self) -> list[Unit]:
+    def _default_roster(self) -> list[UnitType]:
         return [
-            Unit("p_archer_1", "청팀 궁수 A", UnitType.ARCHER, Team.PLAYER, 2, 2, (1, 7)),
-            Unit("p_archer_2", "청팀 궁수 B", UnitType.ARCHER, Team.PLAYER, 2, 2, (6, 7)),
-            Unit("p_king", "청팀 왕", UnitType.KING, Team.PLAYER, 5, 5, (3, 7)),
-            Unit("p_mage", "청팀 마법사", UnitType.MAGE, Team.PLAYER, 2, 2, (4, 7)),
-            Unit("p_sword_1", "청팀 검사 A", UnitType.SWORDMAN, Team.PLAYER, 3, 3, (2, 6)),
-            Unit("p_sword_2", "청팀 검사 B", UnitType.SWORDMAN, Team.PLAYER, 3, 3, (5, 6)),
-            Unit("a_archer_1", "홍팀 궁수 A", UnitType.ARCHER, Team.AI, 2, 2, (1, 0)),
-            Unit("a_archer_2", "홍팀 궁수 B", UnitType.ARCHER, Team.AI, 2, 2, (6, 0)),
-            Unit("a_king", "홍팀 왕", UnitType.KING, Team.AI, 5, 5, (3, 0)),
-            Unit("a_mage", "홍팀 마법사", UnitType.MAGE, Team.AI, 2, 2, (4, 0)),
-            Unit("a_sword_1", "홍팀 검사 A", UnitType.SWORDMAN, Team.AI, 3, 3, (2, 1)),
-            Unit("a_sword_2", "홍팀 검사 B", UnitType.SWORDMAN, Team.AI, 3, 3, (5, 1)),
+            UnitType.ARCHER,
+            UnitType.SWORDMAN,
+            UnitType.SWORDMAN,
+            UnitType.KNIGHT,
+            UnitType.MAGE,
+            UnitType.LANCER,
+            UnitType.ARCHER,
         ]
+
+    def _create_units(self, player_roster: list[UnitType], ai_roster: list[UnitType]) -> list[Unit]:
+        units = [
+            self._make_unit("p_king", Team.PLAYER, UnitType.KING, PLAYER_KING_POS),
+            self._make_unit("a_king", Team.AI, UnitType.KING, AI_KING_POS),
+        ]
+        for idx, unit_type in enumerate(player_roster):
+            units.append(self._make_unit(f"p_{unit_type.name.lower()}_{idx}", Team.PLAYER, unit_type, PLAYER_DEPLOY_POSITIONS[idx]))
+        for idx, unit_type in enumerate(ai_roster):
+            units.append(self._make_unit(f"a_{unit_type.name.lower()}_{idx}", Team.AI, unit_type, AI_DEPLOY_POSITIONS[idx]))
+        return units
+
+    def _make_unit(self, unit_id: str, team: Team, unit_type: UnitType, position: Position) -> Unit:
+        hp = BASE_HP[unit_type]
+        return Unit(unit_id, f"{TEAM_NAMES[team]} {UNIT_DISPLAY_NAMES[unit_type]}", unit_type, team, hp, hp, position)
 
     def start_turn(self, team: Team, opening: bool = False) -> None:
         self.current_turn = team
@@ -71,13 +122,17 @@ class GameManager:
                     unit.tick_cooldowns()
         self.ai_timer = 0.0
         self.selected_unit_id = None
+        self.inspected_unit_id = None
+        self.activation_unit_id = None
+        self.activation_move_used = False
+        self.activation_action_used = False
         self.action_mode = ActionMode.MOVE
         self.end_turn_warning_armed = False
-        self.log(f"{TEAM_NAMES[team]} 차례입니다.")
+        self.log(f"{TEAM_NAMES[team]} 진영 차례입니다.")
         if team == Team.PLAYER:
-            self.last_feedback = "유닛을 클릭하면 이동 칸과 공격 사거리가 함께 표시됩니다."
+            self.last_feedback = "아군 유닛을 고른 뒤 이동, 공격 또는 스킬을 선택하세요."
         else:
-            self.last_feedback = "홍팀이 지형을 살피며 행동을 고르는 중입니다."
+            self.last_feedback = "흑 진영이 수를 계산 중입니다."
 
     def handle_event(self, event: pygame.event.Event) -> None:
         if self.state == GameState.GAME_OVER:
@@ -85,13 +140,11 @@ class GameManager:
         if event.type == pygame.KEYDOWN and self.state == GameState.PLAYER_TURN:
             if event.key == pygame.K_q:
                 self.action_mode = ActionMode.SKILL
-                self.last_feedback = self.mode_help_text()
             elif event.key == pygame.K_a:
                 self.action_mode = ActionMode.ATTACK
-                self.last_feedback = self.mode_help_text()
             elif event.key == pygame.K_m or event.key == pygame.K_ESCAPE:
                 self.action_mode = ActionMode.MOVE
-                self.last_feedback = self.mode_help_text()
+            self.last_feedback = self.mode_help_text()
         if event.type == pygame.MOUSEWHEEL:
             mouse_pos = pygame.mouse.get_pos()
             if self.log_panel_rect.collidepoint(mouse_pos):
@@ -103,12 +156,12 @@ class GameManager:
         if self.state != GameState.PLAYER_TURN:
             return
         if self.end_turn_rect.collidepoint(mouse_pos):
-            if self.selected_unit is None and not self.end_turn_warning_armed:
+            if self.activation_unit_id is None and not self.end_turn_warning_armed:
                 self.end_turn_warning_armed = True
-                self.last_feedback = "아직 행동하지 않았습니다. 턴을 정말 종료하려면 한 번 더 누르세요."
+                self.last_feedback = "아직 행동하지 않았습니다. 한 번 더 누르면 턴을 종료합니다."
                 return
             self.end_turn_warning_armed = False
-            self.end_player_turn("플레이어가 턴을 종료했습니다.")
+            self.end_player_turn("청 진영이 턴을 종료했습니다.")
             return
 
         for mode, rect in ACTION_BUTTONS.items():
@@ -122,53 +175,101 @@ class GameManager:
         if click.board_tile is None:
             return
 
-        if click.clicked_unit and click.clicked_unit.team == Team.PLAYER:
-            self.selected_unit_id = click.clicked_unit.id
-            self.action_mode = ActionMode.MOVE
-            self.end_turn_warning_armed = False
-            self.last_feedback = "초록은 이동, 붉은 테두리는 공격 사거리입니다. 공격이나 스킬은 오른쪽 버튼을 누르세요."
-            self.add_effect("select", click.clicked_unit.position, duration=0.25)
+        if click.clicked_unit is not None:
+            self.inspected_unit_id = click.clicked_unit.id
+
+        if (
+            self.action_mode == ActionMode.SKILL
+            and self.selected_unit is not None
+            and click.board_tile in self.valid_skill_tiles
+            and self.can_unit_act(self.selected_unit)
+        ):
+            self.activation_unit_id = self.selected_unit.id
+            self.activation_action_used = True
+            self._resolve_skill(self.selected_unit, click.board_tile)
+            if self.state != GameState.GAME_OVER:
+                self.end_player_turn()
             return
+
+        if click.clicked_unit and click.clicked_unit.team == Team.PLAYER:
+            if self.can_select_unit(click.clicked_unit):
+                self.selected_unit_id = click.clicked_unit.id
+                self.action_mode = ActionMode.ATTACK if self.activation_unit_id == click.clicked_unit.id and self.activation_move_used else ActionMode.MOVE
+                self.last_feedback = self.mode_help_text()
+                self.add_effect("select", click.clicked_unit.position, duration=0.25)
+            else:
+                self.last_feedback = "이미 행동한 유닛은 다시 선택할 수 없습니다."
+            return
+
+        if click.clicked_unit and click.clicked_unit.team != Team.PLAYER:
+            if self.selected_unit is None or self.action_mode == ActionMode.MOVE:
+                self.last_feedback = f"{click.clicked_unit.name} 정보를 확인 중입니다."
+                return
 
         unit = self.selected_unit
         if unit is None:
-            self.last_feedback = "먼저 청팀 유닛을 선택하세요."
+            self.last_feedback = "먼저 아군 유닛을 선택하세요."
             return
-
         if self.board.is_blocked(click.board_tile):
-            self.last_feedback = "바위 지형은 통과할 수 없습니다. 다른 칸을 선택하세요."
+            self.last_feedback = "그 칸은 장애물이라 이동할 수 없습니다."
             return
 
-        if self.action_mode == ActionMode.MOVE and click.board_tile in self.valid_move_tiles:
+        if self.action_mode == ActionMode.MOVE:
+            if not self.can_unit_move(unit):
+                self.last_feedback = "이 유닛은 이미 이동했습니다."
+                return
+            if click.board_tile not in self.valid_move_tiles:
+                self.last_feedback = "이동 가능한 칸을 선택하세요."
+                return
             start = unit.position
             unit.move(click.board_tile)
+            self.activation_unit_id = unit.id
+            self.activation_move_used = True
+            self.selected_unit_id = unit.id
+            self.inspected_unit_id = unit.id
             self.add_effect("move", start, duration=0.30)
             self.add_effect("move", click.board_tile, duration=0.45)
             self.log(f"{unit.name} 이동: {start} -> {click.board_tile}")
-            self.last_feedback = f"{unit.name} 이동 완료"
-            self.end_player_turn()
+            self.queue_sound("move")
+            if self.valid_attack_tiles or self.valid_skill_tiles:
+                self.action_mode = ActionMode.ATTACK
+                self.last_feedback = "이동 완료. 이어서 공격하거나 스킬을 사용할 수 있습니다."
+            else:
+                self.last_feedback = "이동 완료. 이 유닛은 더 할 수 있는 행동이 없습니다."
             return
 
         if self.action_mode == ActionMode.ATTACK:
-            if click.clicked_unit and click.clicked_unit.position in self.valid_attack_tiles:
-                self._resolve_basic_attack(unit, click.clicked_unit)
-            else:
-                self.last_feedback = "공격은 붉게 채워진 적 칸을 클릭해야 실제로 실행됩니다."
+            if not self.can_unit_act(unit):
+                self.last_feedback = "이 유닛은 이미 행동했습니다."
+                return
+            if click.clicked_unit is None or click.clicked_unit.position not in self.valid_attack_tiles:
+                self.last_feedback = "공격 가능한 적 유닛을 선택하세요."
+                return
+            self.activation_unit_id = unit.id
+            self.activation_action_used = True
+            self._resolve_basic_attack(unit, click.clicked_unit)
+            if self.state != GameState.GAME_OVER:
+                self.end_player_turn()
             return
 
         if self.action_mode == ActionMode.SKILL:
-            if click.board_tile in self.valid_skill_tiles:
-                self._resolve_skill(unit, click.board_tile)
-            else:
-                self.last_feedback = "스킬은 노란 칸을 클릭해야 실제로 실행됩니다."
+            if not self.can_unit_act(unit):
+                self.last_feedback = "이 유닛은 이미 행동했습니다."
+                return
+            if click.board_tile not in self.valid_skill_tiles:
+                self.last_feedback = "스킬 대상 칸을 선택하세요."
+                return
+            self.activation_unit_id = unit.id
+            self.activation_action_used = True
+            self._resolve_skill(unit, click.board_tile)
+            if self.state != GameState.GAME_OVER:
+                self.end_player_turn()
 
     def _click_context(self, mouse_pos: tuple[int, int]) -> ClickContext:
         from game.renderer import board_tile_at_pixel
 
         tile = board_tile_at_pixel(mouse_pos)
-        if tile is None:
-            return ClickContext()
-        return ClickContext(tile, self.unit_at(tile))
+        return ClickContext() if tile is None else ClickContext(tile, self.unit_at(tile))
 
     @property
     def selected_unit(self) -> Unit | None:
@@ -177,28 +278,47 @@ class GameManager:
         return next((unit for unit in self.units if unit.id == self.selected_unit_id and unit.is_alive()), None)
 
     @property
+    def inspected_unit(self) -> Unit | None:
+        if self.inspected_unit_id is None:
+            return None
+        return next((unit for unit in self.units if unit.id == self.inspected_unit_id and unit.is_alive()), None)
+
+    @property
+    def focused_unit(self) -> Unit | None:
+        return self.inspected_unit or self.selected_unit
+
+    @property
     def living_units(self) -> list[Unit]:
         return [unit for unit in self.units if unit.is_alive()]
+
+    def can_select_unit(self, unit: Unit) -> bool:
+        return unit.team == self.current_turn and unit.is_alive() and (self.activation_unit_id is None or self.activation_unit_id == unit.id)
+
+    def can_unit_move(self, unit: Unit) -> bool:
+        return unit.team == self.current_turn and unit.is_alive() and not self.activation_action_used and not self.activation_move_used and (self.activation_unit_id is None or self.activation_unit_id == unit.id)
+
+    def can_unit_act(self, unit: Unit) -> bool:
+        return unit.team == self.current_turn and unit.is_alive() and not self.activation_action_used and (self.activation_unit_id is None or self.activation_unit_id == unit.id)
 
     @property
     def valid_move_tiles(self) -> list[Position]:
         unit = self.selected_unit
-        return unit.basic_move_targets(self.board, self.living_units) if unit else []
+        return unit.basic_move_targets(self.board, self.living_units) if unit and self.can_unit_move(unit) else []
 
     @property
     def attack_preview_tiles(self) -> list[Position]:
         unit = self.selected_unit
-        return unit.attack_preview_tiles(self.board) if unit else []
+        return unit.attack_preview_tiles(self.board) if unit and self.can_unit_act(unit) else []
 
     @property
     def valid_attack_tiles(self) -> list[Position]:
         unit = self.selected_unit
-        return unit.attack_targets(self.board, self.living_units) if unit else []
+        return unit.attack_targets(self.board, self.living_units) if unit and self.can_unit_act(unit) else []
 
     @property
     def valid_skill_tiles(self) -> list[Position]:
         unit = self.selected_unit
-        return unit.skill_targets(self.board, self.living_units) if unit else []
+        return unit.skill_targets(self.board, self.living_units) if unit and self.can_unit_act(unit) else []
 
     def update(self, dt: float) -> None:
         self._update_effects(dt)
@@ -211,80 +331,89 @@ class GameManager:
     def _execute_ai_turn(self) -> None:
         action = self.ai.choose_action(self.board, self.living_units)
         if action is None:
-            self.end_ai_turn("AI가 행동하지 않고 턴을 넘겼습니다.")
+            self.end_ai_turn("흑 진영이 턴을 종료했습니다.")
             return
-
         unit = self.get_unit(action.unit_id)
         if unit is None:
-            self.end_ai_turn("AI 유닛을 찾지 못했습니다.")
+            self.end_ai_turn("흑 진영이 행동할 유닛을 찾지 못했습니다.")
             return
-
-        if action.action_type == "move":
+        if action.move_target is not None:
             start = unit.position
-            unit.move(action.target)
+            unit.move(action.move_target)
             self.add_effect("move", start, duration=0.30)
-            self.add_effect("move", action.target, duration=0.45)
-            self.log(f"{unit.name} 이동: {start} -> {action.target}")
-            self.last_feedback = f"{unit.name} 이동 완료"
-        elif action.action_type == "attack":
-            target = self.unit_at(action.target)
-            if target:
-                self._resolve_basic_attack(unit, target, auto_end=False)
-        elif action.action_type == "skill":
-            self._resolve_skill(unit, action.target, auto_end=False)
-
+            self.add_effect("move", action.move_target, duration=0.45)
+            self.log(f"{unit.name} 이동: {start} -> {action.move_target}")
+            self.queue_sound("move")
+        if action.action_type == "attack" and action.action_target is not None:
+            target = self.unit_at(action.action_target)
+            if target is not None:
+                self._resolve_basic_attack(unit, target)
+        elif action.action_type == "skill" and action.action_target is not None:
+            self._resolve_skill(unit, action.action_target)
+        elif action.move_target is not None:
+            self.last_feedback = f"{unit.name}이 이동만 하고 턴을 마쳤습니다."
         if self.state != GameState.GAME_OVER:
             self.end_ai_turn()
 
-    def _resolve_basic_attack(self, attacker: Unit, target: Unit, auto_end: bool = True) -> None:
+    def _resolve_basic_attack(self, attacker: Unit, target: Unit) -> None:
+        target_tile = target.position
         self.add_effect("slash", target.position, duration=0.30)
         damage = attacker.attack(target)
+        self.queue_sound("attack")
         self._show_damage_feedback(target, damage)
         if damage > 0:
-            self.log(f"{attacker.name} 공격: {target.name}에게 {damage} 피해")
-            self.last_feedback = f"공격 적중: {target.name} 체력 {target.hp}/{target.max_hp}"
+            self.log(f"{attacker.name} 공격: {target.name}에게 피해 {damage}")
+            self.last_feedback = f"{target.name} 체력: {target.hp}/{target.max_hp}"
         else:
-            self.log(f"{attacker.name} 공격: {target.name}의 보호막에 막혔습니다")
-            self.last_feedback = "공격이 보호막에 막혔습니다."
+            self.log(f"{attacker.name} 공격: {target.name}의 보호막에 막혔습니다.")
+            self.last_feedback = "보호막이 피해를 막아냈습니다."
         self._cleanup_dead_units()
-        if self._check_victory():
-            return
-        if auto_end:
-            if attacker.team == Team.PLAYER:
-                self.end_player_turn()
-            else:
-                self.end_ai_turn()
+        if attacker.is_melee() and not target.is_alive():
+            attacker.move(target_tile)
+            self.inspected_unit_id = attacker.id
+            self.add_effect("move", target_tile, duration=0.32)
+            self.log(f"{attacker.name} 전진: 처치 후 빈 칸을 점령했습니다.")
+        self._check_victory()
+        if self.state == GameState.GAME_OVER:
+            self.queue_sound("win")
 
-    def _resolve_skill(self, unit: Unit, target_tile: Position, auto_end: bool = True) -> None:
+    def _resolve_skill(self, unit: Unit, target_tile: Position) -> None:
         unit.use_skill()
         skill = SKILLS[unit.unit_type]
         self.add_effect("skill_cast", unit.position, duration=0.35)
+        self.queue_sound("skill")
         if unit.unit_type == UnitType.KING:
-            unit.shield_turns = 1
-            self.add_effect("shield", unit.position, duration=0.70)
-            self.add_effect("text", unit.position, duration=0.75, text="보호막", color=(255, 226, 110))
-            self.log(f"{unit.name} 스킬 사용: {skill.name}. 다음 아군 턴 전까지 받는 피해가 1 감소합니다.")
-            self.last_feedback = f"{unit.name}에게 보호막이 생겼습니다."
+            target = self.unit_at(target_tile)
+            if target is not None and target.team == unit.team:
+                target.shield_turns = max(target.shield_turns, 1)
+                self.add_effect("shield", target.position, duration=0.70)
+                self.add_effect("text", target.position, duration=0.75, text="보호", color=(255, 226, 110))
+                self.log(f"{unit.name} 스킬 사용: {skill.name}")
+                self.last_feedback = f"{target.name}에게 1턴 보호막을 부여했습니다."
         elif unit.unit_type == UnitType.SWORDMAN:
             self._resolve_charge(unit, target_tile)
         elif unit.unit_type == UnitType.ARCHER:
             hits = self._resolve_piercing_shot(unit, target_tile)
-            self.log(f"{unit.name} 스킬 사용: {skill.name}. 적 {hits}기에게 적중했습니다.")
+            self.log(f"{unit.name} 스킬 사용: {skill.name}, 피해 대상 {hits}")
             self.last_feedback = f"관통 사격 적중 수: {hits}"
         elif unit.unit_type == UnitType.MAGE:
             hits = self._resolve_flame_burst(unit, target_tile)
-            self.log(f"{unit.name} 스킬 사용: {skill.name}. 적 {hits}기를 불태웠습니다.")
+            self.log(f"{unit.name} 스킬 사용: {skill.name}, 피해 대상 {hits}")
             self.last_feedback = f"화염 폭발 적중 수: {hits}"
-
+        elif unit.unit_type == UnitType.KNIGHT:
+            self._resolve_leap_strike(unit, target_tile)
+        elif unit.unit_type == UnitType.BISHOP:
+            hits = self._resolve_bishop_beam(unit, target_tile)
+            self.log(f"{unit.name} 스킬 사용: {skill.name}, 피해 대상 {hits}")
+            self.last_feedback = f"대각 광선 적중 수: {hits}"
+        elif unit.unit_type == UnitType.LANCER:
+            success = self._resolve_lancer_thrust(unit, target_tile)
+            self.log(f"{unit.name} 스킬 사용: {skill.name}")
+            self.last_feedback = "관통 찌르기가 적중했습니다." if success else "관통 찌르기가 적에게 닿지 않았습니다."
         self._cleanup_dead_units()
-        if self._check_victory():
-            return
-
-        if auto_end:
-            if unit.team == Team.PLAYER:
-                self.end_player_turn()
-            else:
-                self.end_ai_turn()
+        self._check_victory()
+        if self.state == GameState.GAME_OVER:
+            self.queue_sound("win")
 
     def _resolve_charge(self, unit: Unit, target_tile: Position) -> None:
         start = unit.position
@@ -295,21 +424,22 @@ class GameManager:
             landing = (target_tile[0] - dx, target_tile[1] - dy)
             if landing != unit.position and self.unit_at(landing) is None and self.board.is_walkable(landing):
                 unit.move(landing)
+                self.inspected_unit_id = unit.id
                 self.add_effect("dash", landing, duration=0.45, origin=start)
             damage = unit.attack(target_unit)
             self.add_effect("slash", target_unit.position, duration=0.35)
             self._show_damage_feedback(target_unit, damage)
-            if damage > 0:
-                self.log(f"{unit.name} 돌진 공격: {target_unit.name}에게 {damage} 피해")
-                self.last_feedback = f"돌진 적중: {target_unit.name} 체력 {target_unit.hp}/{target_unit.max_hp}"
+            if damage > 0 and target_unit.is_alive() and self._push_unit(target_unit, dx, dy):
+                self.last_feedback = f"{target_unit.name}을 밀어내며 돌진에 성공했습니다."
+            elif damage > 0:
+                self.last_feedback = f"돌진으로 {target_unit.name}에게 피해를 주었습니다."
             else:
-                self.log(f"{unit.name} 돌진 공격: {target_unit.name}의 보호막에 막혔습니다")
-                self.last_feedback = "돌진 공격이 보호막에 막혔습니다."
+                self.last_feedback = "돌진이 보호막에 막혔습니다."
         else:
             unit.move(target_tile)
+            self.inspected_unit_id = unit.id
             self.add_effect("dash", target_tile, duration=0.45, origin=start)
-            self.log(f"{unit.name} 돌진 이동: {start} -> {target_tile}")
-            self.last_feedback = f"{unit.name} 돌진 이동 완료"
+            self.last_feedback = f"{unit.name}이 돌진으로 전진했습니다."
 
     def _resolve_piercing_shot(self, unit: Unit, target_tile: Position) -> int:
         dx = 0 if target_tile[0] == unit.position[0] else (1 if target_tile[0] > unit.position[0] else -1)
@@ -324,8 +454,7 @@ class GameManager:
             path.append(cursor)
             target = self.unit_at(cursor)
             if target and target.team != unit.team:
-                damage = target.take_damage(1)
-                self._show_damage_feedback(target, damage)
+                self._show_damage_feedback(target, target.take_damage(1))
                 hits += 1
         self.add_effect("beam", target_tile, duration=0.32, origin=unit.position, path=path)
         return hits
@@ -337,28 +466,104 @@ class GameManager:
         for tile in affected_tiles:
             target = self.unit_at(tile)
             if target and target.team != unit.team:
-                damage = target.take_damage(1)
-                self._show_damage_feedback(target, damage)
+                self._show_damage_feedback(target, target.take_damage(1))
                 hits += 1
         return hits
 
+    def _resolve_leap_strike(self, unit: Unit, target_tile: Position) -> None:
+        start = unit.position
+        target = self.unit_at(target_tile)
+        self.add_effect("dash", target_tile, duration=0.40, origin=start)
+        if target and target.team != unit.team:
+            damage = unit.attack(target)
+            self._show_damage_feedback(target, damage)
+            if not target.is_alive():
+                unit.move(target_tile)
+                self.inspected_unit_id = unit.id
+                self.last_feedback = f"{unit.name}이 적을 쓰러뜨리고 자리를 차지했습니다."
+            else:
+                push_dx = 0 if target.position[0] == unit.position[0] else (1 if target.position[0] > unit.position[0] else -1)
+                push_dy = 0 if target.position[1] == unit.position[1] else (1 if target.position[1] > unit.position[1] else -1)
+                if self._push_unit(target, push_dx, push_dy, distance=2):
+                    self.last_feedback = f"도약 강타로 {target.name}을 강하게 밀어냈습니다."
+                else:
+                    self.last_feedback = f"도약 강타는 적중했지만 {target.name}은 더 밀리지 않았습니다."
+        else:
+            unit.move(target_tile)
+            self.inspected_unit_id = unit.id
+            unit.shield_turns = max(unit.shield_turns, 1)
+            self.add_effect("shield", target_tile, duration=0.55)
+            self.last_feedback = f"{unit.name}이 도약 후 1턴 보호막을 얻었습니다."
+
+    def _resolve_bishop_beam(self, unit: Unit, target_tile: Position) -> int:
+        dx = 1 if target_tile[0] > unit.position[0] else -1
+        dy = 1 if target_tile[1] > unit.position[1] else -1
+        hits = 0
+        path: list[Position] = []
+        cursor = unit.position
+        for _ in range(4):
+            cursor = (cursor[0] + dx, cursor[1] + dy)
+            if not self.board.in_bounds(cursor) or self.board.is_blocked(cursor):
+                break
+            path.append(cursor)
+            target = self.unit_at(cursor)
+            if target and target.team != unit.team:
+                self._show_damage_feedback(target, target.take_damage(1))
+                hits += 1
+        self.add_effect("beam", target_tile, duration=0.36, origin=unit.position, path=path)
+        return hits
+
+    def _resolve_lancer_thrust(self, unit: Unit, target_tile: Position) -> bool:
+        dx = 0 if target_tile[0] == unit.position[0] else (1 if target_tile[0] > unit.position[0] else -1)
+        dy = 0 if target_tile[1] == unit.position[1] else (1 if target_tile[1] > unit.position[1] else -1)
+        cursor = unit.position
+        path: list[Position] = []
+        for _ in range(3):
+            cursor = (cursor[0] + dx, cursor[1] + dy)
+            if not self.board.in_bounds(cursor) or self.board.is_blocked(cursor):
+                break
+            path.append(cursor)
+            target = self.unit_at(cursor)
+            if target and target.team != unit.team:
+                self._show_damage_feedback(target, target.take_damage(2))
+                self.add_effect("beam", cursor, duration=0.28, origin=unit.position, path=path)
+                return True
+        self.add_effect("beam", target_tile, duration=0.28, origin=unit.position, path=path)
+        return False
+
     def _show_damage_feedback(self, target: Unit, damage: int) -> None:
+        self.inspected_unit_id = target.id
         if damage > 0:
             self.add_effect("attack", target.position, duration=0.45)
             self.add_effect("text", target.position, duration=0.85, text=f"-{damage}", color=(255, 120, 120))
         else:
             self.add_effect("shield", target.position, duration=0.45)
-            self.add_effect("text", target.position, duration=0.80, text="막힘", color=(255, 214, 120))
+            self.add_effect("text", target.position, duration=0.80, text="방어", color=(255, 214, 120))
+
+    def _push_unit(self, target: Unit, dx: int, dy: int, distance: int = 1) -> bool:
+        last_open_tile: Position | None = None
+        for step in range(1, distance + 1):
+            push_tile = (target.position[0] + dx * step, target.position[1] + dy * step)
+            if not self.board.is_walkable(push_tile) or self.unit_at(push_tile) is not None:
+                break
+            last_open_tile = push_tile
+        if last_open_tile is None:
+            return False
+        target.move(last_open_tile)
+        self.add_effect("move", last_open_tile, duration=0.30)
+        return True
 
     def end_player_turn(self, reason: str | None = None) -> None:
         if reason:
             self.log(reason)
+        self.queue_sound("end_turn")
         self.state = GameState.AI_TURN
         self.start_turn(Team.AI)
 
     def end_ai_turn(self, reason: str | None = None) -> None:
         if reason:
             self.log(reason)
+        self.queue_sound("end_turn")
         self.turn_count += 1
         self.state = GameState.PLAYER_TURN
         self.start_turn(Team.PLAYER)
@@ -375,11 +580,20 @@ class GameManager:
         self.logs.append(message)
         self.log_scroll = min(self.log_scroll, self.max_log_scroll())
 
+    def queue_sound(self, sound_name: str) -> None:
+        self.sound_events.append(sound_name)
+
+    def drain_sound_events(self) -> list[str]:
+        queued = list(self.sound_events)
+        self.sound_events.clear()
+        return queued
+
     def scroll_logs(self, delta: int) -> None:
         self.log_scroll = max(0, min(self.max_log_scroll(), self.log_scroll + delta))
 
     def max_log_scroll(self, visible_lines: int = 4) -> int:
-        return max(0, len(self.logs) - visible_lines)
+        estimated_wrapped_lines = len(self.logs) * 3
+        return max(0, estimated_wrapped_lines - visible_lines)
 
     def visible_logs(self, visible_lines: int = 4) -> list[str]:
         end = len(self.logs) - self.log_scroll
@@ -387,42 +601,43 @@ class GameManager:
         return self.logs[start:end]
 
     def mode_help_text(self) -> str:
-        if self.selected_unit is None:
-            return "먼저 청팀 유닛을 클릭한 뒤 A/M/Q를 선택하세요."
+        unit = self.selected_unit
+        if unit is None:
+            return "먼저 청 진영 유닛을 선택하세요."
         if self.action_mode == ActionMode.MOVE:
-            return "초록은 이동, 붉은 테두리는 공격 사거리입니다. 이동할 칸을 클릭하세요."
+            return "이동 가능한 칸을 눌러 자리를 잡으세요."
         if self.action_mode == ActionMode.ATTACK:
-            return "공격 선택됨. 붉게 채워진 적 칸을 클릭해야 실제로 공격합니다."
-        return "스킬 선택됨. 노란 칸의 대상을 클릭해야 실제로 스킬이 나갑니다."
+            return "공격 가능한 적 유닛을 선택하세요."
+        if self.action_mode == ActionMode.SKILL:
+            return "금색 강조 칸이 스킬 대상입니다."
+        return "행동 방식을 선택하세요."
 
     def step_guide_text(self) -> str:
-        if self.selected_unit is None:
-            return "1. 청팀 유닛 선택 -> 2. A/M/Q 선택 -> 3. 보드에서 대상 클릭"
+        unit = self.selected_unit
+        if unit is None:
+            return "1. 유닛 선택  2. 이동  3. 공격 또는 스킬"
         if self.action_mode == ActionMode.MOVE:
-            return "현재 단계: 3 / 초록 이동 칸과 붉은 공격 사거리를 확인하세요"
+            return "초록 칸이 이동 가능 위치입니다."
         if self.action_mode == ActionMode.ATTACK:
-            return "현재 단계: 3 / 붉게 채워진 적 칸을 클릭하세요"
-        return "현재 단계: 3 / 노란 스킬 대상을 클릭하세요"
+            return "붉은 윤곽 칸은 현재 공격 사거리입니다."
+        if self.action_mode == ActionMode.SKILL:
+            return "금색 강조 칸이 스킬 대상 위치입니다."
+        return "행동 바에서 원하는 행동을 선택하세요."
 
     def turn_status_text(self) -> str:
         if self.state == GameState.PLAYER_TURN:
-            return "당신의 차례입니다"
+            return "청 진영 행동 중"
         if self.state == GameState.AI_TURN:
-            remain = max(0.0, self.ai_delay - self.ai_timer)
-            return f"홍팀 행동 중... {remain:.1f}초"
-        if self.state == GameState.GAME_OVER and self.winner is not None:
-            return f"전투 종료: {TEAM_NAMES[self.winner]} 승리"
-        return "대기 중"
+            return f"흑 진영 계산 중... {max(0.0, self.ai_delay - self.ai_timer):.1f}초"
+        return f"승리: {TEAM_NAMES[self.winner]} 진영" if self.winner is not None else "대기 중..."
 
     def action_summary_text(self) -> str:
         unit = self.selected_unit
         if unit is None:
-            return "선택된 유닛 없음"
-        if self.action_mode == ActionMode.MOVE:
-            return f"이동 {len(self.valid_move_tiles)}칸 / 공격 사거리 {len(self.attack_preview_tiles)}칸"
-        if self.action_mode == ActionMode.ATTACK:
-            return f"공격 사거리 {len(self.attack_preview_tiles)}칸 / 명중 가능 {len(self.valid_attack_tiles)}칸"
-        return f"스킬 가능 {len(self.valid_skill_tiles)}칸"
+            return "선택된 아군 없음"
+        move_state = "사용" if self.activation_move_used and self.activation_unit_id == unit.id else "가능"
+        action_state = "사용" if self.activation_action_used and self.activation_unit_id == unit.id else "가능"
+        return f"이동 {move_state} | 행동 {action_state}"
 
     def add_effect(self, effect_type: str, position: Position, duration: float = 0.45, **extra: object) -> None:
         effect = {"type": effect_type, "position": position, "timer": duration, "max_timer": duration}
@@ -442,6 +657,10 @@ class GameManager:
         for unit in self.units:
             if unit.hp <= 0:
                 unit.hp = 0
+                if self.inspected_unit_id == unit.id:
+                    self.inspected_unit_id = None
+                if self.selected_unit_id == unit.id:
+                    self.selected_unit_id = None
 
     def _check_victory(self) -> bool:
         player_king_alive = any(unit.unit_type == UnitType.KING and unit.team == Team.PLAYER and unit.is_alive() for unit in self.units)
@@ -450,29 +669,29 @@ class GameManager:
             return False
         self.winner = Team.PLAYER if player_king_alive else Team.AI
         self.state = GameState.GAME_OVER
-        self.log(f"게임 종료. {TEAM_NAMES[self.winner]} 승리")
-        self.last_feedback = f"{TEAM_NAMES[self.winner]} 승리"
+        self.log(f"대국 종료. {TEAM_NAMES[self.winner]} 진영 승리")
+        self.last_feedback = f"{TEAM_NAMES[self.winner]} 진영 승리"
         return True
 
     def selected_skill(self) -> str:
-        unit = self.selected_unit
+        unit = self.focused_unit
         if unit is None:
             return "-"
         skill = SKILLS[unit.unit_type]
-        current = unit.cooldowns.get("skill", 0)
-        return f"{skill.name} (재사용 {current}/{skill.cooldown})"
+        return f"{skill.name}  재사용 {unit.cooldowns.get('skill', 0)}/{skill.cooldown}"
 
     def unit_summary(self) -> list[str]:
-        unit = self.selected_unit
+        unit = self.focused_unit
         if unit is None:
             return ["선택된 유닛이 없습니다."]
         skill = SKILLS[unit.unit_type]
         return [
-            unit.name,
-            f"유형: {UNIT_DISPLAY_NAMES[unit.unit_type]}",
+            f"진영: {TEAM_NAMES[unit.team]}",
+            f"병종: {UNIT_DISPLAY_NAMES[unit.unit_type]}",
             f"체력: {unit.hp}/{unit.max_hp}",
-            f"위치: {unit.position}",
-            f"기본 공격 범위: {len(unit.attack_preview_tiles(self.board))}칸",
+            f"공격력: {unit.attack_power()}",
+            f"공격 범위: {len(unit.attack_preview_tiles(self.board))}",
             f"스킬: {skill.name}",
-            f"재사용 대기: {unit.cooldowns.get('skill', 0)}",
+            f"재사용: {unit.cooldowns.get('skill', 0)}",
         ]
+

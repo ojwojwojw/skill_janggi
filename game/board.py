@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 
 from game.constants import BOARD_SIZE
 
-
 Position = tuple[int, int]
 
 
@@ -45,6 +44,15 @@ class Board:
                     results.append(candidate)
         return results
 
+    def knight_positions(self, origin: Position) -> list[Position]:
+        x, y = origin
+        results: list[Position] = []
+        for dx, dy in ((1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1), (-1, 2)):
+            candidate = (x + dx, y + dy)
+            if self.in_bounds(candidate):
+                results.append(candidate)
+        return results
+
     def tiles_in_square(self, center: Position, radius: int) -> list[Position]:
         cx, cy = center
         tiles: list[Position] = []
@@ -54,6 +62,24 @@ class Board:
                 if self.in_bounds(pos):
                     tiles.append(pos)
         return tiles
+
+    @staticmethod
+    def default_obstacles() -> set[Position]:
+        return {(2, 3), (5, 3), (2, 4), (5, 4)}
+
+    @staticmethod
+    def preset_obstacles(name: str, rng: random.Random | None = None) -> set[Position]:
+        rng = rng or random.Random()
+        presets: dict[str, set[Position]] = {
+            "classic": {(2, 3), (5, 3), (2, 4), (5, 4)},
+            "wings": {(1, 2), (6, 2), (1, 5), (6, 5), (2, 3), (5, 4)},
+            "river": {(3, 2), (4, 2), (2, 3), (5, 3), (2, 4), (5, 4), (3, 5), (4, 5)},
+            "fort": {(1, 2), (6, 2), (3, 2), (4, 2), (1, 5), (6, 5), (3, 5), (4, 5)},
+            "cross": {(3, 1), (4, 1), (2, 3), (5, 3), (2, 4), (5, 4), (3, 6), (4, 6)},
+        }
+        if name == "chaos":
+            return Board.default_obstacles() | Board.symmetric_random_obstacles(rng)
+        return set(presets.get(name, Board.default_obstacles()))
 
     @staticmethod
     def symmetric_random_obstacles(rng: random.Random | None = None) -> set[Position]:
