@@ -145,8 +145,8 @@ class GameManager:
         boss = False
         if team == Team.AI and unit_type == UnitType.KING:
             if self.ai_difficulty >= 7:
-                hp += 10
-                attack_bonus = 2
+                hp += 6
+                attack_bonus = 1
                 armor = 0
                 boss = True
             elif self.ai_difficulty >= 6:
@@ -515,6 +515,7 @@ class GameManager:
         self.queue_sound("skill")
         if unit.unit_type == UnitType.KING:
             if unit.boss:
+                unit.cooldowns["skill"] = max(unit.cooldowns.get("skill", 0), 3)
                 teleported, hits = self._resolve_terror_slam(unit, target_tile)
                 self.log(f"{unit.name} 스킬 사용: 공포 강림, 피해 대상 {hits}")
                 self.last_feedback = "괴물 왕이 순간이동 후 공포 강림을 쏟아냈습니다." if teleported else f"괴물 왕의 공포 강림이 {hits}명을 휩쓸었습니다."
@@ -645,7 +646,8 @@ class GameManager:
         target = self.unit_at(target_tile)
         self.add_effect("dash", target_tile, duration=0.40, origin=start)
         if target and target.team != unit.team:
-            damage = unit.attack(target)
+            target_origin = target.position
+            damage = unit.attack(target, amount=2)
             self._show_damage_feedback(target, damage)
             if not target.is_alive():
                 unit.move(target_tile)
@@ -655,7 +657,8 @@ class GameManager:
                 push_dx = 0 if target.position[0] == unit.position[0] else (1 if target.position[0] > unit.position[0] else -1)
                 push_dy = 0 if target.position[1] == unit.position[1] else (1 if target.position[1] > unit.position[1] else -1)
                 if self._push_unit(target, push_dx, push_dy, distance=2):
-                    self.last_feedback = f"도약 강타로 {target.name}을 강하게 밀어냈습니다."
+                    self._advance_into_tile(unit, target_origin, start)
+                    self.last_feedback = f"도약 강타로 {target.name}을 밀어내고 그 자리를 차지했습니다."
                 else:
                     self.last_feedback = f"도약 강타는 적중했지만 {target.name}은 더 밀리지 않았습니다."
         else:

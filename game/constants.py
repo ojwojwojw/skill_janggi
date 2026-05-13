@@ -121,10 +121,10 @@ UNIT_DISPLAY_NAMES = {
 UNIT_COSTS = {
     UnitType.SWORDMAN: 2,
     UnitType.ARCHER: 2,
-    UnitType.MAGE: 3,
+    UnitType.MAGE: 5,
     UnitType.KNIGHT: 4,
-    UnitType.LANCER: 3,
-    UnitType.BISHOP: 5,
+    UnitType.LANCER: 4,
+    UnitType.BISHOP: 4,
 }
 
 UNIT_DRAFT_BLURBS = {
@@ -135,6 +135,9 @@ UNIT_DRAFT_BLURBS = {
     UnitType.LANCER: "돌진으로 적을 끝까지 밀어내는 유닛.",
     UnitType.BISHOP: "고 코스트 이지만 대각 공격에 능한 고급 유닛.",
 }
+
+UNIT_DRAFT_BLURBS[UnitType.MAGE] = "고 코스트 범위 폭발로 다수를 태우는 광역 유닛."
+UNIT_DRAFT_BLURBS[UnitType.BISHOP] = "대각 공격에 능한 고급 유닛."
 
 UNIT_GLYPHS = {
     UnitType.KING: "K",

@@ -75,6 +75,9 @@ UNIT_DRAFT_BLURBS_LOCAL = {
     UnitType.KING: "전장의 중심이 되는 핵심 유닛.",
 }
 
+UNIT_DRAFT_BLURBS_LOCAL[UnitType.MAGE] = "고 코스트 범위 피해로 전열을 흔드는 광역 유닛."
+UNIT_DRAFT_BLURBS_LOCAL[UnitType.BISHOP] = "대각 공격에 능한 고급 유닛."
+
 UNIT_SKILL_TEXT = {
     UnitType.KING: ("왕의 수호", "아군 한 기에게 보호막을 부여합니다."),
     UnitType.SWORDMAN: ("돌진", "직선으로 밀고 들어가 적을 강하게 압박합니다."),
@@ -150,6 +153,8 @@ def draw_wrapped_left(
 
 
 def draft_budget_for_difficulty(difficulty: int) -> int | None:
+    if difficulty >= 6:
+        return None
     return DRAFT_BUDGET
 
 
@@ -206,10 +211,7 @@ def codex_detail_lines(unit_type: UnitType) -> list[str]:
 def build_ai_roster(seed: int, difficulty: int) -> list[UnitType]:
     rng = random.Random(seed)
     if difficulty >= 6:
-        budget = AI_BUDGET_BY_DIFFICULTY.get(difficulty, DRAFT_BUDGET)
         elite_pool = [
-            UnitType.SWORDMAN,
-            UnitType.ARCHER,
             UnitType.KNIGHT,
             UnitType.BISHOP,
             UnitType.MAGE,
@@ -217,35 +219,22 @@ def build_ai_roster(seed: int, difficulty: int) -> list[UnitType]:
         ]
         limits = {unit: 2 for unit in elite_pool}
         weights = {
-            UnitType.SWORDMAN: 2 if difficulty == 6 else 1,
-            UnitType.ARCHER: 2 if difficulty == 6 else 1,
             UnitType.KNIGHT: 4 if difficulty == 6 else 5,
             UnitType.BISHOP: 4 if difficulty == 6 else 5,
             UnitType.MAGE: 4 if difficulty == 6 else 5,
             UnitType.LANCER: 4 if difficulty == 6 else 5,
         }
         roster: list[UnitType] = []
-        remaining = budget
         while len(roster) < DRAFT_SIZE:
-            slots_left = DRAFT_SIZE - len(roster)
             choices = [
                 unit
                 for unit in elite_pool
                 if roster.count(unit) < limits[unit]
-                and UNIT_COSTS[unit] <= remaining
-                and remaining - UNIT_COSTS[unit] >= max(0, slots_left - 1) * 2
             ]
             if not choices:
-                choices = [
-                    unit
-                    for unit in elite_pool
-                    if roster.count(unit) < limits[unit] and UNIT_COSTS[unit] <= remaining
-                ]
-                if not choices:
-                    break
+                break
             picked = rng.choices(choices, weights=[weights[unit] for unit in choices], k=1)[0]
             roster.append(picked)
-            remaining -= UNIT_COSTS[picked]
         if len(roster) < DRAFT_SIZE:
             roster.extend(auto_fill_roster(roster, rng, difficulty=difficulty)[: DRAFT_SIZE - len(roster)])
         return roster[:DRAFT_SIZE]
@@ -358,11 +347,11 @@ def build_draft_unit_rects() -> dict[UnitType, pygame.Rect]:
 def build_setup_rects() -> tuple[dict[str, pygame.Rect], dict[int, pygame.Rect]]:
     map_rects: dict[str, pygame.Rect] = {}
     start_x = 136
-    start_y = 386
+    start_y = 384
     card_w = 226
     card_h = 102
     gap_x = 18
-    gap_y = 22
+    gap_y = 14
     for index, (key, _, _) in enumerate(MAP_OPTIONS):
         col = index % 4
         row = index // 4
@@ -388,11 +377,11 @@ def build_setup_rects() -> tuple[dict[str, pygame.Rect], dict[int, pygame.Rect]]
 
 
 def build_setup_action_rect() -> pygame.Rect:
-    return pygame.Rect(516, 614, 248, 44)
+    return pygame.Rect(772, 604, 288, 56)
 
 
 def build_codex_button_rect() -> pygame.Rect:
-    return pygame.Rect(796, 614, 248, 44)
+    return pygame.Rect(492, 618, 232, 40)
 
 
 def build_codex_unit_rects() -> dict[UnitType, pygame.Rect]:
@@ -461,6 +450,7 @@ def draw_setup_menu(
         screen.blit(label, label.get_rect(center=rect.center))
 
     screen.blit(fonts["body"].render("맵 선택", True, TEXT_COLOR), (132, 360))
+
     for key, title, desc in MAP_OPTIONS:
         rect = map_rects[key]
         active = key == selected_map
@@ -482,6 +472,22 @@ def draw_setup_menu(
         pygame.draw.rect(screen, PANEL_BORDER, rect, width=2, border_radius=14)
         surface = fonts["body"].render(label, True, TEXT_COLOR)
         screen.blit(surface, surface.get_rect(center=rect.center))
+
+    # Redraw the setup actions so the swapped positions are visually clear and
+    # the primary CTA stands out more strongly than the codex shortcut.
+    pygame.draw.rect(screen, BUTTON_COLOR, codex_rect, border_radius=14)
+    pygame.draw.rect(screen, PANEL_BORDER, codex_rect, width=2, border_radius=14)
+    codex_surface = fonts["body"].render("기물도감", True, TEXT_COLOR)
+    screen.blit(codex_surface, codex_surface.get_rect(center=codex_rect.center))
+
+    start_glow = start_rect.inflate(18, 14)
+    start_glow_color = (112, 166, 255) if hovered_start else (82, 138, 224)
+    pygame.draw.rect(screen, start_glow_color, start_glow, border_radius=20)
+    start_fill = (104, 148, 224) if hovered_start else (84, 128, 208)
+    pygame.draw.rect(screen, start_fill, start_rect, border_radius=14)
+    pygame.draw.rect(screen, (255, 230, 150), start_rect, width=2, border_radius=14)
+    start_surface = fonts["title"].render("게임 시작", True, TEXT_COLOR)
+    screen.blit(start_surface, start_surface.get_rect(center=start_rect.center))
 
 
 def draw_draft_menu(

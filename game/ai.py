@@ -87,7 +87,11 @@ class SimpleAI:
                     continue
 
                 move_score = self._score_move(unit, move, board, moved_units)
+                follow_up_actions = self._actions_from_position(moved_unit, board, moved_units)
                 action = AIAction(unit_id=unit.id, move_target=move, score=move_score)
+
+                if follow_up_actions:
+                    action.score -= 320.0
 
                 if threatening_enemy is not None:
                     action.score += self._king_defense_action_bonus(
@@ -102,9 +106,9 @@ class SimpleAI:
 
                 actions.append(action)
 
-                for follow_up in self._actions_from_position(moved_unit, board, moved_units):
+                for follow_up in follow_up_actions:
                     follow_up.move_target = move
-                    follow_up.score += 9.0
+                    follow_up.score += 90.0
 
                     if threatening_enemy is not None:
                         follow_up.score += self._king_defense_action_bonus(
@@ -205,6 +209,32 @@ class SimpleAI:
         if panic_mode and threatening_enemy is not None and ai_king is not None:
             actions = self._filter_and_boost_panic_actions(actions, board, units, ai_king, threatening_enemy)
 
+        support_units = self._available_support_strikers(ai_units)
+        if self.difficulty >= 6 and ai_king is not None and support_units and not panic_mode:
+            for action in actions:
+                actor = next((unit for unit in ai_units if unit.id == action.unit_id), None)
+                if actor is None:
+                    continue
+
+                if actor.unit_type == UnitType.KING:
+                    action.score -= 42.0
+                    if action.move_target is not None:
+                        action.score -= 22.0
+                    if action.action_type in {"attack", "skill"}:
+                        action.score -= 18.0
+
+                    enemy_king = next((enemy for enemy in enemies if enemy.unit_type == UnitType.KING and enemy.is_alive()), None)
+                    if enemy_king is not None and action.action_target == enemy_king.position and enemy_king.hp <= 2:
+                        action.score += 48.0
+                    if action.action_type == "skill":
+                        action.score += 46.0
+                elif actor.unit_type in {UnitType.KNIGHT, UnitType.LANCER, UnitType.MAGE} and action.action_type == "skill":
+                    action.score += 26.0
+                    if actor.unit_type == UnitType.MAGE:
+                        action.score += 28.0
+                    elif actor.unit_type in {UnitType.KNIGHT, UnitType.LANCER}:
+                        action.score += 8.0
+
         actions.sort(key=lambda action: action.score, reverse=True)
         chosen = self._pick_for_difficulty(actions)
 
@@ -280,6 +310,24 @@ class SimpleAI:
 
             actions.append(AIAction(unit_id=unit.id, action_type="skill", action_target=target, score=score))
 
+        if unit.unit_type == UnitType.MAGE:
+            has_skill_option = any(action.action_type == "skill" for action in actions)
+            if has_skill_option:
+                for action in actions:
+                    if action.action_type == "skill":
+                        action.score += 44.0
+                    elif action.action_type == "attack":
+                        action.score -= 34.0
+
+        if unit.unit_type == UnitType.KING and unit.boss:
+            has_skill_option = any(action.action_type == "skill" for action in actions)
+            if has_skill_option:
+                for action in actions:
+                    if action.action_type == "skill":
+                        action.score += 72.0
+                    elif action.action_type == "attack":
+                        action.score -= 26.0
+
         return actions
 
     def _simulate_move(self, units: list[Unit], unit_id: str, move_target: Position) -> list[Unit]:
@@ -324,7 +372,11 @@ class SimpleAI:
         if self.difficulty >= 4 and victim.hp <= unit.attack_power():
             score += 22.0
         if self.difficulty >= 4 and victim.unit_type == UnitType.KING:
-            score += 40.0
+            score += 62.0
+            if unit.unit_type in {UnitType.SWORDMAN, UnitType.KNIGHT, UnitType.LANCER}:
+                score += 36.0
+            elif unit.unit_type in {UnitType.ARCHER, UnitType.MAGE, UnitType.BISHOP}:
+                score += 28.0 + max(0, 4 - victim.hp) * 8.0
         if self.difficulty >= 5:
             score += self._pressure_bonus(target, board, enemies)
         if self.difficulty >= 6 and unit.is_melee():
@@ -348,14 +400,17 @@ class SimpleAI:
                 if not hits:
                     return -1.0
                 king_hit = any(enemy.unit_type == UnitType.KING for enemy in hits)
-                return 92.0 + len(hits) * 30.0 + (52.0 if king_hit else 0.0)
+                base = 124.0 + len(hits) * 34.0 + (62.0 if king_hit else 0.0)
+                if len(hits) >= 2:
+                    base += 22.0
+                return base
             return 18.0 if unit.hp <= 4 and unit.shield_turns == 0 else -1.0
 
         if unit.unit_type == UnitType.SWORDMAN:
             victim = next((enemy for enemy in enemies if enemy.position == target), None)
             base = 56.0 if victim else 18.0
             if victim and victim.unit_type == UnitType.KING:
-                base += 24.0
+                base += 56.0
             if self.difficulty >= 4:
                 base += self._pressure_bonus(target, board, enemies)
             if self.difficulty >= 6 and victim and victim.hp <= 2:
@@ -366,7 +421,8 @@ class SimpleAI:
             hits = [enemy for enemy in enemies if enemy.position in self._line_tiles(unit.position, target, board, 3)]
             if not hits:
                 return -1.0
-            return 26.0 + len(hits) * (22.0 if self.difficulty >= 4 else 18.0)
+            king_hit = any(enemy.unit_type == UnitType.KING for enemy in hits)
+            return 26.0 + len(hits) * (22.0 if self.difficulty >= 4 else 18.0) + (28.0 if king_hit else 0.0)
 
         if unit.unit_type == UnitType.MAGE:
             affected = {tile for tile in board.tiles_in_square(target, 1) if not board.is_blocked(tile)}
@@ -374,21 +430,25 @@ class SimpleAI:
             if not hits:
                 return -1.0
             king_hit = any(enemy.unit_type == UnitType.KING for enemy in hits)
-            base = 16.0 + len(hits) * (22.0 if self.difficulty >= 4 else 18.0) + (14.0 if king_hit else 0.0)
+            base = 26.0 + len(hits) * (24.0 if self.difficulty >= 4 else 20.0) + (52.0 if king_hit else 0.0)
             if len(hits) == 1:
-                base -= 18.0
+                base += 10.0
             elif len(hits) >= 3:
-                base += 14.0
+                base += 18.0
+            if self.difficulty >= 6 and len(hits) >= 2:
+                base += 24.0
             return base
 
         if unit.unit_type == UnitType.KNIGHT:
             victim = next((enemy for enemy in enemies if enemy.position == target), None)
             if victim:
                 base = 54.0 + (18.0 if victim.hp <= 2 else 0.0)
+                if victim.unit_type == UnitType.KING:
+                    base += 48.0
                 if self.difficulty >= 4:
                     base += self._pressure_bonus(target, board, enemies)
                 if self.difficulty >= 6:
-                    base += 10.0
+                    base += 22.0
                 return base
             return 16.0 - min(board.distance(target, enemy.position) for enemy in enemies)
 
@@ -396,7 +456,8 @@ class SimpleAI:
             hits = [enemy for enemy in enemies if enemy.position in self._diagonal_tiles(unit.position, target, board, 4)]
             if not hits:
                 return -1.0
-            return 28.0 + len(hits) * (26.0 if self.difficulty >= 4 else 22.0)
+            king_hit = any(enemy.unit_type == UnitType.KING for enemy in hits)
+            return 28.0 + len(hits) * (26.0 if self.difficulty >= 4 else 22.0) + (24.0 if king_hit else 0.0)
 
         if unit.unit_type == UnitType.LANCER:
             victim = next((enemy for enemy in enemies if enemy.position == target), None)
@@ -404,9 +465,9 @@ class SimpleAI:
                 return -1.0
             base = 48.0 + (18.0 if victim.hp <= 2 else 0.0)
             if self.difficulty >= 4 and victim.unit_type == UnitType.KING:
-                base += 18.0
+                base += 50.0
             if self.difficulty >= 6:
-                base += 8.0
+                base += 22.0
             return base
 
         return -1.0
@@ -515,7 +576,7 @@ class SimpleAI:
                     score += 34.0
 
                 if skill_count > 0:
-                    score += 16.0 + skill_count * 5.0
+                    score += 26.0 + skill_count * 7.0
 
                 if nearest_enemy < current_enemy_dist:
                     score += 22.0
@@ -547,6 +608,17 @@ class SimpleAI:
                     # 왕 위협 기물과 멀어지는 술사 이동은 산책으로 본다.
                     if moved_priority_dist >= current_priority_dist and not can_pressure_priority_enemy:
                         score -= 70.0
+
+            if nearest_enemy <= 1:
+                score -= 62.0
+                if attack_count > 0 and skill_count == 0:
+                    score -= 42.0
+            elif nearest_enemy <= 2 and threatened > 0 and attack_count > 0 and skill_count == 0:
+                score -= 32.0
+            if attack_count > 0 and skill_count == 0 and nearest_enemy <= 2:
+                score -= 26.0
+            if skill_count > 0 and nearest_enemy >= 2:
+                score += 18.0
 
         if self.difficulty >= 4:
             score += self._threatened_targets_bonus(unit, move, board, units)
@@ -633,6 +705,41 @@ class SimpleAI:
                     score += 8.0
                 if self.last_actor_id == unit.id and self.same_actor_streak >= 2 and attack_count == 0 and skill_count == 0:
                     score -= 14.0 + self.same_actor_streak * 4.0
+
+        enemy_king = self._priority_enemy_king(enemies)
+        if enemy_king is not None and moved_unit is not None:
+            current_king_dist = board.distance(unit.position, enemy_king.position)
+            moved_king_dist = board.distance(move, enemy_king.position)
+            king_attack_available = enemy_king.position in moved_unit.attack_targets(board, simulated)
+            king_skill_available = enemy_king.position in moved_unit.skill_targets(board, simulated)
+
+            if unit.unit_type in {UnitType.SWORDMAN, UnitType.KNIGHT, UnitType.LANCER, UnitType.KING}:
+                if moved_king_dist < current_king_dist:
+                    score += 16.0 + max(0, 4 - moved_king_dist) * 6.0
+                elif moved_king_dist > current_king_dist and attack_count == 0 and skill_count == 0:
+                    score -= 14.0
+                if moved_king_dist <= 2:
+                    score += 18.0
+                if king_attack_available or king_skill_available:
+                    score += 42.0
+                if unit.unit_type in {UnitType.KNIGHT, UnitType.LANCER}:
+                    if moved_king_dist <= 3:
+                        score += 22.0
+                    if king_skill_available:
+                        score += 34.0
+                    if moved_king_dist < current_king_dist and (attack_count > 0 or skill_count > 0):
+                        score += 18.0
+            else:
+                if king_attack_available:
+                    score += 68.0
+                if king_skill_available:
+                    score += 58.0
+                if enemy_king.hp <= 3 and (king_attack_available or king_skill_available):
+                    score += 28.0
+                if moved_king_dist < current_king_dist and (attack_count > 0 or skill_count > 0):
+                    score += 22.0
+                elif moved_king_dist > current_king_dist and attack_count == 0 and skill_count == 0:
+                    score -= 12.0
 
         return score
 
@@ -1021,6 +1128,16 @@ class SimpleAI:
 
         # 왕에게 가까운 적도 잠재 위협으로 본다.
         return min(enemies, key=lambda enemy: board.distance(enemy.position, ai_king.position), default=None)
+
+    def _priority_enemy_king(self, enemies: list[Unit]) -> Unit | None:
+        return next((enemy for enemy in enemies if enemy.unit_type == UnitType.KING and enemy.is_alive()), None)
+
+    def _available_support_strikers(self, allies: list[Unit]) -> list[Unit]:
+        return [
+            ally
+            for ally in allies
+            if ally.is_alive() and ally.unit_type in {UnitType.KNIGHT, UnitType.LANCER, UnitType.MAGE}
+        ]
 
     def _refresh_king_threat_memory(self, board: Board, ai_king: Unit, enemies: list[Unit], allies: list[Unit]) -> None:
         active_ids: set[str] = set()

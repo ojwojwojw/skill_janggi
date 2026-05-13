@@ -11,7 +11,7 @@ ATTACK_POWER = {
     UnitType.SWORDMAN: 1,
     UnitType.ARCHER: 1,
     UnitType.MAGE: 1,
-    UnitType.KNIGHT: 2,
+    UnitType.KNIGHT: 1,
     UnitType.BISHOP: 1,
     UnitType.LANCER: 1,
 }
@@ -115,7 +115,7 @@ class Unit:
         occupied = {unit.position: unit for unit in units if unit.is_alive() and unit.id != self.id}
         if self.unit_type == UnitType.KING:
             if self.boss:
-                return [tile for tile in board.tiles_in_square(self.position, 3) if tile != self.position and not board.is_blocked(tile)]
+                return [tile for tile in board.tiles_in_square(self.position, 2) if tile != self.position and not board.is_blocked(tile)]
             return [ally.position for ally in units if ally.is_alive() and ally.team == self.team]
         if self.unit_type == UnitType.SWORDMAN:
             return self._charge_targets(board, units)
