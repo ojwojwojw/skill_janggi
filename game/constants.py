@@ -9,21 +9,21 @@ FPS = 60
 BOARD_SIZE = 8
 TILE_SIZE = 68
 BOARD_PIXEL_SIZE = BOARD_SIZE * TILE_SIZE
-BOARD_ORIGIN = (252, 66)
+BOARD_ORIGIN = (252, 76)
 
 SIDEBAR_X = 812
-SIDEBAR_Y = 42
+SIDEBAR_Y = 34
 SIDEBAR_WIDTH = 440
-SIDEBAR_HEIGHT = 568
+SIDEBAR_HEIGHT = 590
 
-INFO_PANEL_RECT = (SIDEBAR_X + 16, SIDEBAR_Y + 124, 408, 268)
-ACTION_PANEL_RECT = (SIDEBAR_X + 16, SIDEBAR_Y + 434, 408, 124)
-LOG_PANEL_RECT = (28, 66, 210, 544)
+INFO_PANEL_RECT = (SIDEBAR_X + 16, SIDEBAR_Y + 136, 408, 264)
+ACTION_PANEL_RECT = (SIDEBAR_X + 16, SIDEBAR_Y + 430, 408, 138)
+LOG_PANEL_RECT = (28, 76, 210, 522)
 
-MOVE_BUTTON = (SIDEBAR_X + 22, SIDEBAR_Y + 474, 92, 36)
-ATTACK_BUTTON = (SIDEBAR_X + 122, SIDEBAR_Y + 474, 92, 36)
-SKILL_BUTTON = (SIDEBAR_X + 222, SIDEBAR_Y + 474, 92, 36)
-END_TURN_BUTTON = (SIDEBAR_X + 322, SIDEBAR_Y + 474, 92, 36)
+MOVE_BUTTON = (SIDEBAR_X + 22, SIDEBAR_Y + 480, 92, 36)
+ATTACK_BUTTON = (SIDEBAR_X + 122, SIDEBAR_Y + 480, 92, 36)
+SKILL_BUTTON = (SIDEBAR_X + 222, SIDEBAR_Y + 480, 92, 36)
+END_TURN_BUTTON = (SIDEBAR_X + 322, SIDEBAR_Y + 480, 92, 36)
 
 BACKGROUND_COLOR = (15, 19, 30)
 PANEL_COLOR = (24, 30, 46)
@@ -55,6 +55,26 @@ RIVER_TILE_DARK = (35, 82, 144)
 DRAFT_BUDGET = 17
 DRAFT_SIZE = 7
 
+DIFFICULTY_LABELS = {
+    1: "매우 쉬움",
+    2: "쉬움",
+    3: "보통",
+    4: "어려움",
+    5: "매우 어려움",
+    6: "악몽",
+    7: "괴물",
+}
+
+AI_BUDGET_BY_DIFFICULTY = {
+    1: 17,
+    2: 17,
+    3: 17,
+    4: 18,
+    5: 19,
+    6: 20,
+    7: 23,
+}
+
 
 class Team(Enum):
     PLAYER = auto()
@@ -84,8 +104,8 @@ class UnitType(Enum):
 
 
 TEAM_NAMES = {
-    Team.PLAYER: "청",
-    Team.AI: "흑",
+    Team.PLAYER: "청팀",
+    Team.AI: "적팀",
 }
 
 UNIT_DISPLAY_NAMES = {
@@ -94,7 +114,7 @@ UNIT_DISPLAY_NAMES = {
     UnitType.ARCHER: "궁수",
     UnitType.MAGE: "술사",
     UnitType.KNIGHT: "기마",
-    UnitType.BISHOP: "비숍",
+    UnitType.BISHOP: "사제",
     UnitType.LANCER: "창병",
 }
 
@@ -108,12 +128,12 @@ UNIT_COSTS = {
 }
 
 UNIT_DRAFT_BLURBS = {
-    UnitType.SWORDMAN: "직선 이동과 돌진.",
-    UnitType.ARCHER: "후방 견제 사격.",
-    UnitType.MAGE: "광역 폭발 제압.",
-    UnitType.KNIGHT: "도약 진입과 밀치기.",
-    UnitType.LANCER: "직선 돌파와 찌르기.",
-    UnitType.BISHOP: "대각 장거리 압박.",
+    UnitType.SWORDMAN: "직선 압박과 돌진이 강한 근접 유닛.",
+    UnitType.ARCHER: "먼 거리에서 끊어치는 견제형 원거리 유닛.",
+    UnitType.MAGE: "범위 폭발로 다수를 태우는 광역 유닛.",
+    UnitType.KNIGHT: "기동력으로 측면을 찌르는 돌파 유닛.",
+    UnitType.LANCER: "돌진으로 적을 끝까지 밀어내는 유닛.",
+    UnitType.BISHOP: "고 코스트 이지만 대각 공격에 능한 고급 유닛.",
 }
 
 UNIT_GLYPHS = {
@@ -129,6 +149,8 @@ UNIT_GLYPHS = {
 DRAFT_POOL = [
     UnitType.SWORDMAN,
     UnitType.ARCHER,
+    UnitType.MAGE,
     UnitType.KNIGHT,
     UnitType.BISHOP,
+    UnitType.LANCER,
 ]
