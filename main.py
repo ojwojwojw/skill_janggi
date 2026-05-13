@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import random
+import sys
 
 import pygame
 
@@ -723,6 +724,16 @@ def draw_game_over_overlay(
     screen.blit(label, label.get_rect(center=button_rect.center))
 
 
+def resolve_app_paths() -> tuple[Path, Path]:
+    if getattr(sys, "frozen", False):
+        asset_root = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+        data_root = Path(sys.executable).resolve().parent
+    else:
+        asset_root = Path(__file__).resolve().parent
+        data_root = asset_root
+    return asset_root, data_root
+
+
 def main() -> None:
     pygame.mixer.pre_init(44100, -16, 1, 512)
     pygame.init()
@@ -737,9 +748,9 @@ def main() -> None:
         "tiny": load_ui_font(13, bold=True),
     }
 
-    project_root = Path(__file__).resolve().parent
-    sounds = SoundController(project_root)
-    preview_sprites = load_preview_sprites(project_root)
+    asset_root, data_root = resolve_app_paths()
+    sounds = SoundController(asset_root)
+    preview_sprites = load_preview_sprites(asset_root)
     map_rects, difficulty_rects = build_setup_rects()
     setup_start_rect = build_setup_action_rect()
     codex_button_rect = build_codex_button_rect()
@@ -859,7 +870,7 @@ def main() -> None:
                 elif deployment_action_rects["start"].collidepoint(event.pos) and len(player_placements) == len(player_roster):
                     ordered_positions = [player_placements[idx] for idx in range(len(player_roster))]
                     game = GameManager(
-                        project_root,
+                        data_root,
                         blocked_tiles=blocked_tiles,
                         player_roster=player_roster,
                         ai_roster=ai_roster,
@@ -867,7 +878,7 @@ def main() -> None:
                         ai_difficulty=selected_difficulty,
                         map_name=selected_map,
                     )
-                    renderer = Renderer(screen, project_root)
+                    renderer = Renderer(screen, asset_root)
                     mode = "game"
             elif mode == "game":
                 assert game is not None
@@ -934,7 +945,7 @@ def main() -> None:
             draw_deployment_menu(
                 screen,
                 fonts,
-                project_root,
+                asset_root,
                 player_roster,
                 player_placements,
                 selected_deploy_index,
