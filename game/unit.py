@@ -8,12 +8,12 @@ from game.skill import SKILLS
 
 ATTACK_POWER = {
     UnitType.KING: 1,
-    UnitType.SWORDMAN: 2,
+    UnitType.SWORDMAN: 1,
     UnitType.ARCHER: 1,
     UnitType.MAGE: 1,
-    UnitType.KNIGHT: 2,
+    UnitType.KNIGHT: 1,
     UnitType.BISHOP: 1,
-    UnitType.LANCER: 2,
+    UnitType.LANCER: 1,
 }
 
 
@@ -28,6 +28,9 @@ class Unit:
     position: Position
     cooldowns: dict[str, int] = field(default_factory=dict)
     shield_turns: int = 0
+    attack_bonus: int = 0
+    armor: int = 0
+    boss: bool = False
 
     def is_alive(self) -> bool:
         return self.hp > 0
@@ -39,7 +42,7 @@ class Unit:
         self.position = destination
 
     def attack_power(self) -> int:
-        return ATTACK_POWER[self.unit_type]
+        return ATTACK_POWER[self.unit_type] + self.attack_bonus
 
     def attack(self, target: "Unit", amount: int | None = None) -> int:
         return target.take_damage(self.attack_power() if amount is None else amount)
@@ -51,7 +54,7 @@ class Unit:
         return self.cooldowns.get("skill", 0) <= 0
 
     def take_damage(self, amount: int) -> int:
-        actual = max(0, amount - (1 if self.shield_turns > 0 else 0))
+        actual = max(0, amount - (1 if self.shield_turns > 0 else 0) - self.armor)
         self.hp -= actual
         return actual
 
@@ -111,6 +114,8 @@ class Unit:
             return []
         occupied = {unit.position: unit for unit in units if unit.is_alive() and unit.id != self.id}
         if self.unit_type == UnitType.KING:
+            if self.boss:
+                return [tile for tile in board.tiles_in_square(self.position, 2) if tile != self.position and not board.is_blocked(tile)]
             return [ally.position for ally in units if ally.is_alive() and ally.team == self.team]
         if self.unit_type == UnitType.SWORDMAN:
             return self._charge_targets(board, units)

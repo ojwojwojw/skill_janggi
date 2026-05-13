@@ -87,6 +87,8 @@ class Renderer:
         self.overlay_skill = pygame.transform.scale(pygame.image.load(self.ui_dir / "tile_skill.png").convert_alpha(), (TILE_SIZE, TILE_SIZE))
         self.overlay_attack_preview = self._make_outline_overlay((233, 92, 92, 120), inset=16, width=3)
         self.sprites = self._load_unit_sprites()
+        monster_path = self.sprite_dir / "king_monster.png"
+        self.monster_king_sprite = pygame.transform.scale(pygame.image.load(monster_path).convert_alpha(), (TILE_SIZE, TILE_SIZE)) if monster_path.exists() else None
         self.action_icons = {
             ActionMode.MOVE: pygame.image.load(self.ui_dir / "icon_move.png").convert_alpha(),
             ActionMode.ATTACK: pygame.image.load(self.ui_dir / "icon_attack.png").convert_alpha(),
@@ -116,7 +118,7 @@ class Renderer:
         pygame.draw.rect(self.screen, PANEL_BORDER, sidebar, width=2, border_radius=16)
         self._draw_text(self.title_font, f"{game.turn_count} 턴", TEXT_COLOR, (SIDEBAR_X + 20, SIDEBAR_Y + 18))
         turn_color = BLUE_TEAM if game.current_turn == Team.PLAYER else RED_TEAM
-        self._draw_text(self.font, f"현재 차례: {TEAM_NAMES[game.current_turn]} 진영", turn_color, (SIDEBAR_X + 20, SIDEBAR_Y + 50))
+        self._draw_text(self.font, f"현재 차례: {TEAM_NAMES[game.current_turn]}", turn_color, (SIDEBAR_X + 20, SIDEBAR_Y + 50))
         self._draw_text(self.small_font, game.turn_status_text(), SUBTEXT_COLOR, (SIDEBAR_X + 20, SIDEBAR_Y + 74))
         self._draw_text(self.small_font, game.step_guide_text(), (190, 204, 230), (SIDEBAR_X + 20, SIDEBAR_Y + 96))
 
@@ -136,7 +138,7 @@ class Renderer:
 
         pygame.draw.rect(self.screen, (29, 37, 55), portrait_rect, border_radius=14)
         pygame.draw.rect(self.screen, team_color, portrait_rect, width=2, border_radius=14)
-        portrait = pygame.transform.scale(self.sprites[(focused.unit_type, focused.team)], (80, 80))
+        portrait = pygame.transform.scale(self._sprite_for_unit(focused), (80, 80))
         self.screen.blit(portrait, portrait.get_rect(center=(portrait_rect.centerx, portrait_rect.y + 52)))
         self._draw_centered_text(self.small_font, TEAM_NAMES[focused.team], team_color, pygame.Rect(portrait_rect.x, portrait_rect.bottom - 32, portrait_rect.width, 16))
         self._draw_centered_text(self.small_font, UNIT_DISPLAY_NAMES[focused.unit_type], TEXT_COLOR, pygame.Rect(portrait_rect.x, portrait_rect.bottom - 16, portrait_rect.width, 16))
@@ -172,7 +174,11 @@ class Renderer:
         self._draw_text(self.font, "행동 바", TEXT_COLOR, (panel.x + 14, panel.y + 10))
         self._draw_text(self.small_font, game.action_summary_text(), SUBTEXT_COLOR, (panel.x + 90, panel.y + 12))
 
-        labels = {ActionMode.MOVE: "이동", ActionMode.ATTACK: "공격", ActionMode.SKILL: "스킬"}
+        labels = {
+            ActionMode.MOVE: "이동(m)",
+            ActionMode.ATTACK: "공격(a)",
+            ActionMode.SKILL: "스킬(q)",
+        }
         for mode in (ActionMode.MOVE, ActionMode.ATTACK, ActionMode.SKILL):
             rect = ACTION_BUTTONS[mode]
             active = game.action_mode == mode
@@ -181,13 +187,13 @@ class Renderer:
             pygame.draw.rect(self.screen, color, rect, border_radius=10)
             pygame.draw.rect(self.screen, PANEL_BORDER, rect, width=2, border_radius=10)
             self.screen.blit(self.action_icons[mode], (rect.x + 8, rect.y + 4))
-            self._draw_text(self.font, labels[mode], TEXT_COLOR, (rect.x + 36, rect.y + 9))
+            self._draw_text(self.small_font, labels[mode], TEXT_COLOR, (rect.x + 34, rect.y + 11))
 
         end_rect = pygame.Rect(*END_TURN_BUTTON)
         pygame.draw.rect(self.screen, BUTTON_COLOR, end_rect, border_radius=10)
         pygame.draw.rect(self.screen, PANEL_BORDER, end_rect, width=2, border_radius=10)
         self.screen.blit(self.action_icons["end"], (end_rect.x + 8, end_rect.y + 4))
-        self._draw_text(self.font, "턴 종료", TEXT_COLOR, (end_rect.x + 36, end_rect.y + 9))
+        self._draw_text(self.small_font, "턴 종료(e)", TEXT_COLOR, (end_rect.x + 34, end_rect.y + 11))
 
         hint_rect = pygame.Rect(panel.x + 16, panel.y + 88, panel.width - 32, 18)
         self._draw_single_line_fit(hint_rect, self.tiny_font, game.last_feedback, SUBTEXT_COLOR)
@@ -298,6 +304,10 @@ class Renderer:
                 self._draw_dash(effect.get("origin", tile), tile, alpha)
             elif effect_type == "burst":
                 self._draw_burst(effect, alpha)
+            elif effect_type == "boss_burst":
+                self._draw_boss_burst(effect, alpha)
+            elif effect_type == "teleport":
+                self._draw_teleport(effect, alpha)
             self.screen.blit(overlay, (px, py))
 
     def _draw_floating_text(self, effect: dict[str, object], center: tuple[int, int], alpha: int, progress: float) -> None:
@@ -332,11 +342,47 @@ class Renderer:
             pygame.draw.rect(burst_surface, (255, 130, 60, alpha // 3), (px + 6, py + 6, TILE_SIZE - 12, TILE_SIZE - 12), border_radius=8)
         self.screen.blit(burst_surface, (0, 0))
 
+    def _draw_boss_burst(self, effect: dict[str, object], alpha: int) -> None:
+        surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        center = self._tile_center(effect["position"])
+        if effect.get("origin"):
+            pygame.draw.line(surface, (160, 72, 255, alpha // 2), self._tile_center(effect["origin"]), center, 6)
+        pygame.draw.circle(surface, (255, 58, 58, alpha), center, int(TILE_SIZE * 0.95), width=8)
+        pygame.draw.circle(surface, (70, 0, 0, alpha), center, int(TILE_SIZE * 0.55))
+        pygame.draw.circle(surface, (255, 200, 200, alpha // 2), center, int(TILE_SIZE * 1.25), width=3)
+        for tile in effect.get("tiles", []):
+            px = BOARD_ORIGIN[0] + tile[0] * TILE_SIZE
+            py = BOARD_ORIGIN[1] + tile[1] * TILE_SIZE
+            pygame.draw.rect(surface, (120, 0, 0, alpha // 3), (px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8), border_radius=10)
+            pygame.draw.line(surface, (255, 120, 120, alpha), (px + 12, py + 14), (px + TILE_SIZE - 14, py + TILE_SIZE - 14), 3)
+            pygame.draw.line(surface, (255, 120, 120, alpha), (px + TILE_SIZE - 14, py + 14), (px + 12, py + TILE_SIZE - 14), 3)
+        self.screen.blit(surface, (0, 0))
+
+    def _draw_teleport(self, effect: dict[str, object], alpha: int) -> None:
+        surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        center = self._tile_center(effect["position"])
+        origin = effect.get("origin")
+        if origin:
+            pygame.draw.line(surface, (186, 126, 255, alpha), self._tile_center(origin), center, 4)
+        pygame.draw.circle(surface, (216, 96, 255, alpha), center, int(TILE_SIZE * 0.45), width=4)
+        pygame.draw.circle(surface, (255, 255, 255, alpha // 2), center, int(TILE_SIZE * 0.22), width=2)
+        self.screen.blit(surface, (0, 0))
+
     def _draw_unit(self, unit) -> None:
-        sprite = self.sprites[(unit.unit_type, unit.team)]
+        sprite = self._sprite_for_unit(unit)
         px = BOARD_ORIGIN[0] + unit.position[0] * TILE_SIZE
         py = BOARD_ORIGIN[1] + unit.position[1] * TILE_SIZE
+        team_color = BLUE_TEAM if unit.team == Team.PLAYER else RED_TEAM
+        shadow_surface = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow_surface, (8, 12, 18, 82), (16, TILE_SIZE - 16, TILE_SIZE - 32, 10))
+        self.screen.blit(shadow_surface, (px, py))
         self.screen.blit(sprite, (px, py))
+        pygame.draw.rect(self.screen, team_color, pygame.Rect(px + 8, py + 8, TILE_SIZE - 16, TILE_SIZE - 16), width=2, border_radius=10)
+        tag_rect = pygame.Rect(px + 3, py + 3, 19, 16)
+        pygame.draw.rect(self.screen, (12, 18, 28), tag_rect, border_radius=5)
+        pygame.draw.rect(self.screen, team_color, tag_rect, width=2, border_radius=5)
+        tag = self.tiny_font.render(UNIT_GLYPHS[unit.unit_type], True, (250, 252, 255))
+        self.screen.blit(tag, tag.get_rect(center=tag_rect.center))
         self._draw_hp_bar(px + 6, py + TILE_SIZE - 14, TILE_SIZE - 12, 8, unit.hp, unit.max_hp)
         hp_text = self.tiny_font.render(str(unit.hp), True, TEXT_COLOR)
         self.screen.blit(hp_text, hp_text.get_rect(center=(px + TILE_SIZE // 2, py + TILE_SIZE - 20)))
@@ -439,6 +485,11 @@ class Renderer:
         }
         return {key: pygame.transform.scale(pygame.image.load(path).convert_alpha(), (TILE_SIZE, TILE_SIZE)) for key, path in mapping.items()}
 
+    def _sprite_for_unit(self, unit) -> pygame.Surface:
+        if getattr(unit, "boss", False) and unit.unit_type == UnitType.KING and unit.team == Team.AI and self.monster_king_sprite is not None:
+            return self.monster_king_sprite
+        return self.sprites[(unit.unit_type, unit.team)]
+
     def _make_overlay(self, color: tuple[int, int, int, int]) -> pygame.Surface:
         surface = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
         pygame.draw.rect(surface, color, (6, 6, TILE_SIZE - 12, TILE_SIZE - 12), border_radius=10)
@@ -477,5 +528,6 @@ class Renderer:
         text = self.title_font.render(glyph, True, (12, 18, 28))
         surface.blit(text, text.get_rect(center=(TILE_SIZE // 2, TILE_SIZE // 2)))
         return surface
+
 
 
