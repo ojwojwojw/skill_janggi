@@ -1,10 +1,10 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 
 import pygame
 
-from game.constants import (
+from game.model.constants import (
     ACTION_PANEL_RECT,
     ATTACK_BUTTON,
     ATTACK_HIGHLIGHT,
@@ -61,6 +61,7 @@ ACTION_BUTTONS = {
 
 
 def board_tile_at_pixel(mouse_pos: tuple[int, int]) -> tuple[int, int] | None:
+    """화면 픽셀 좌표를 보드 타일 좌표로 변환한다."""
     x, y = mouse_pos
     board_x, board_y = BOARD_ORIGIN
     if not (board_x <= x < board_x + BOARD_PIXEL_SIZE and board_y <= y < board_y + BOARD_PIXEL_SIZE):
@@ -69,7 +70,10 @@ def board_tile_at_pixel(mouse_pos: tuple[int, int]) -> tuple[int, int] | None:
 
 
 class Renderer:
+    """전투 화면 전체와 보드 이펙트를 그리는 전용 렌더러."""
+
     def __init__(self, screen: pygame.Surface, project_root: Path) -> None:
+        """렌더링에 필요한 폰트, 아이콘, 스프라이트, 기본 표면을 준비한다."""
         self.screen = screen
         self.project_root = project_root
         self.sprite_dir = project_root / "assets" / "sprites"
@@ -97,14 +101,17 @@ class Renderer:
         }
 
     def draw(self, game) -> None:
+        """현재 게임 상태를 한 프레임 분량 화면에 렌더링한다."""
         self.screen.fill(BACKGROUND_COLOR)
         self._draw_board(game)
         self._draw_log_panel(game)
         self._draw_sidebar_shell(game)
         self._draw_info_panel(game)
         self._draw_action_panel(game)
+        self._draw_tutorial_overlay(game)
 
     def _draw_board(self, game) -> None:
+        """보드, 장애물, 하이라이트, 유닛을 메인 전장에 그린다."""
         self.screen.blit(self.board_surface, BOARD_ORIGIN)
         self._draw_obstacles(game)
         self._draw_overlays(game)
@@ -113,6 +120,7 @@ class Renderer:
             self._draw_unit(unit)
 
     def _draw_sidebar_shell(self, game) -> None:
+        """턴 정보와 현재 진행 상황을 담는 우측 상단 패널을 그린다."""
         sidebar = pygame.Rect(SIDEBAR_X, SIDEBAR_Y, SIDEBAR_WIDTH, SIDEBAR_HEIGHT)
         pygame.draw.rect(self.screen, PANEL_COLOR, sidebar, border_radius=16)
         pygame.draw.rect(self.screen, PANEL_BORDER, sidebar, width=2, border_radius=16)
@@ -123,6 +131,7 @@ class Renderer:
         self._draw_text(self.small_font, game.step_guide_text(), (190, 204, 230), (SIDEBAR_X + 20, SIDEBAR_Y + 96))
 
     def _draw_info_panel(self, game) -> None:
+        """선택 또는 포커스된 유닛의 상세 정보를 우측 패널에 그린다."""
         panel = pygame.Rect(*INFO_PANEL_RECT)
         self._draw_card(panel)
         self._draw_text(self.font, "유닛 정보", TEXT_COLOR, (panel.x + 14, panel.y + 10))
@@ -163,12 +172,14 @@ class Renderer:
         self._draw_text(self.small_font, game.selected_skill(), TEXT_COLOR, (skill_rect.x + 12, skill_rect.y + 23))
 
     def _draw_stat_chip(self, rect: pygame.Rect, label: str, value: str) -> None:
+        """정보 패널의 작은 수치 카드 하나를 그린다."""
         pygame.draw.rect(self.screen, (35, 43, 63), rect, border_radius=10)
         pygame.draw.rect(self.screen, PANEL_BORDER, rect, width=1, border_radius=10)
         self._draw_text(self.tiny_font, label, SUBTEXT_COLOR, (rect.x + 8, rect.y + 6))
         self._draw_text(self.tiny_font, value, TEXT_COLOR, (rect.x + 8, rect.y + 18))
 
     def _draw_action_panel(self, game) -> None:
+        """행동 버튼, 턴 종료 버튼, 현재 피드백 문구를 그린다."""
         panel = pygame.Rect(*ACTION_PANEL_RECT)
         self._draw_card(panel)
         self._draw_text(self.font, "행동 바", TEXT_COLOR, (panel.x + 14, panel.y + 10))
@@ -199,6 +210,7 @@ class Renderer:
         self._draw_single_line_fit(hint_rect, self.tiny_font, game.last_feedback, SUBTEXT_COLOR)
 
     def _draw_log_panel(self, game) -> None:
+        """스크롤 가능한 전투 로그 패널을 그린다."""
         panel = pygame.Rect(*LOG_PANEL_RECT)
         self._draw_card(panel)
         self._draw_text(self.font, "전투 기록", TEXT_COLOR, (panel.x + 12, panel.y + 10))
@@ -228,10 +240,12 @@ class Renderer:
         self._draw_scrollbar(game, panel, visible_lines, total_segments)
 
     def _draw_card(self, rect: pygame.Rect) -> None:
+        """공통 카드형 패널 배경과 테두리를 그린다."""
         pygame.draw.rect(self.screen, LOG_PANEL_BG, rect, border_radius=12)
         pygame.draw.rect(self.screen, PANEL_BORDER, rect, width=2, border_radius=12)
 
     def _draw_obstacles(self, game) -> None:
+        """보드 위 장애물 타일을 화면에 그린다."""
         for tile in game.board.blocked_tiles:
             px = BOARD_ORIGIN[0] + tile[0] * TILE_SIZE
             py = BOARD_ORIGIN[1] + tile[1] * TILE_SIZE
@@ -249,6 +263,7 @@ class Renderer:
                 pygame.draw.line(self.screen, (60, 68, 84), (shape.centerx, shape.y + 10), (shape.centerx - 10, shape.bottom - 10), 2)
 
     def _draw_overlays(self, game) -> None:
+        """선택, 이동, 공격, 스킬 대상용 타일 오버레이를 그린다."""
         if game.focused_unit is not None:
             self._blit_tile_overlay(game.focused_unit.position, self._make_outline_overlay((255, 255, 255, 110), inset=12, width=2))
         if game.selected_unit is None:
@@ -270,6 +285,7 @@ class Renderer:
             self._blit_tile_overlay(tile, overlay_map[game.action_mode])
 
     def _draw_effects(self, game) -> None:
+        """현재 활성화된 이펙트 목록을 순회하며 그린다."""
         for effect in getattr(game, "effects", []):
             effect_type = effect["type"]
             tile = effect["position"]
@@ -286,11 +302,21 @@ class Renderer:
             if effect_type == "beam":
                 self._draw_beam(effect, alpha)
                 continue
+            if effect_type == "attack_line":
+                self._draw_attack_line(effect, alpha)
+                continue
             overlay = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
             if effect_type == "move":
                 pygame.draw.rect(overlay, (100, 240, 180, alpha), (10, 10, TILE_SIZE - 20, TILE_SIZE - 20), width=4, border_radius=10)
             elif effect_type == "attack":
                 pygame.draw.circle(overlay, (255, 90, 90, alpha), (TILE_SIZE // 2, TILE_SIZE // 2), int(16 + 8 * progress), width=4)
+            elif effect_type == "impact":
+                radius = int((24 if effect.get("heavy") else 18) + 18 * progress)
+                pygame.draw.circle(overlay, (255, 78, 78, alpha), (TILE_SIZE // 2, TILE_SIZE // 2), radius, width=6)
+                pygame.draw.circle(overlay, (255, 218, 218, alpha // 2), (TILE_SIZE // 2, TILE_SIZE // 2), max(10, radius - 10), width=3)
+            elif effect_type == "hit_flash":
+                flash_alpha = min(220, alpha + (50 if effect.get("heavy") else 0))
+                pygame.draw.circle(overlay, (255, 240, 240, flash_alpha), (TILE_SIZE // 2, TILE_SIZE // 2), int(20 + 10 * progress))
             elif effect_type == "slash":
                 pygame.draw.line(overlay, (255, 180, 180, alpha), (14, TILE_SIZE - 14), (TILE_SIZE - 14, 14), 4)
                 pygame.draw.line(overlay, (255, 110, 110, alpha), (18, TILE_SIZE - 12), (TILE_SIZE - 12, 18), 2)
@@ -298,8 +324,18 @@ class Renderer:
                 pygame.draw.circle(overlay, (255, 214, 90, alpha), (TILE_SIZE // 2, TILE_SIZE // 2), int(12 + 12 * progress), width=3)
             elif effect_type == "shield":
                 pygame.draw.circle(overlay, (255, 228, 120, alpha), (TILE_SIZE // 2, TILE_SIZE // 2), int(18 + 6 * progress), width=4)
+            elif effect_type == "guard_ring":
+                pygame.draw.circle(overlay, (255, 238, 154, alpha), (TILE_SIZE // 2, TILE_SIZE // 2), int(14 + 16 * progress), width=4)
             elif effect_type == "select":
                 pygame.draw.rect(overlay, (255, 255, 255, alpha), (8, 8, TILE_SIZE - 16, TILE_SIZE - 16), width=3, border_radius=10)
+            elif effect_type == "thinking":
+                self._draw_thinking(effect, alpha, progress)
+            elif effect_type == "ghost_move":
+                pygame.draw.rect(overlay, (112, 230, 180, alpha // 2), (12, 12, TILE_SIZE - 24, TILE_SIZE - 24), width=3, border_radius=10)
+            elif effect_type == "ghost_attack":
+                pygame.draw.circle(overlay, (255, 108, 108, alpha), (TILE_SIZE // 2, TILE_SIZE // 2), int(18 + 6 * progress), width=3)
+            elif effect_type == "ghost_skill":
+                pygame.draw.rect(overlay, (255, 214, 90, alpha), (10, 10, TILE_SIZE - 20, TILE_SIZE - 20), width=3, border_radius=8)
             elif effect_type == "dash":
                 self._draw_dash(effect.get("origin", tile), tile, alpha)
             elif effect_type == "burst":
@@ -311,11 +347,13 @@ class Renderer:
             self.screen.blit(overlay, (px, py))
 
     def _draw_floating_text(self, effect: dict[str, object], center: tuple[int, int], alpha: int, progress: float) -> None:
+        """피해량 같은 떠오르는 텍스트 이펙트를 그린다."""
         surface = self.big_font.render(str(effect.get("text", "")), True, tuple(effect.get("color", (255, 255, 255))))
         surface.set_alpha(alpha)
         self.screen.blit(surface, surface.get_rect(center=(center[0], center[1] - int(16 * progress))))
 
     def _draw_beam(self, effect: dict[str, object], alpha: int) -> None:
+        """광선형 스킬 경로 이펙트를 그린다."""
         path = effect.get("path", [])
         origin = effect.get("origin")
         if not origin or not path:
@@ -326,12 +364,38 @@ class Renderer:
         pygame.draw.lines(beam_surface, (255, 245, 180, min(255, alpha + 20)), False, points, 2)
         self.screen.blit(beam_surface, (0, 0))
 
+    def _draw_attack_line(self, effect: dict[str, object], alpha: int) -> None:
+        """기본 공격의 직선 타격 이펙트를 그린다."""
+        origin = effect.get("origin")
+        if not origin:
+            return
+        surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        start = self._tile_center(origin)
+        end = self._tile_center(effect["position"])
+        pygame.draw.line(surface, (255, 118, 118, alpha), start, end, 6)
+        pygame.draw.line(surface, (255, 228, 228, min(255, alpha + 35)), start, end, 2)
+        self.screen.blit(surface, (0, 0))
+
     def _draw_dash(self, origin: tuple[int, int], tile: tuple[int, int], alpha: int) -> None:
+        """돌진 또는 이동 궤적을 선 형태로 그린다."""
         dash_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
         pygame.draw.line(dash_surface, (120, 255, 210, alpha), self._tile_center(origin), self._tile_center(tile), 8)
         self.screen.blit(dash_surface, (0, 0))
 
+    def _draw_thinking(self, effect: dict[str, object], alpha: int, progress: float) -> None:
+        """AI가 계산 중일 때 보이는 사고 이펙트를 그린다."""
+        surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        center = self._tile_center(effect["position"])
+        orbit_radius = int(20 + 6 * progress)
+        for index in range(3):
+            angle = progress * 4.2 + index * 2.1
+            px = center[0] + int(orbit_radius * pygame.math.Vector2(1, 0).rotate_rad(angle).x)
+            py = center[1] + int(orbit_radius * pygame.math.Vector2(1, 0).rotate_rad(angle).y)
+            pygame.draw.circle(surface, (255, 232, 170, alpha), (px, py), 4 + index % 2)
+        self.screen.blit(surface, (0, 0))
+
     def _draw_burst(self, effect: dict[str, object], alpha: int) -> None:
+        """일반 범위 폭발 이펙트를 그린다."""
         burst_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
         center = self._tile_center(effect["position"])
         pygame.draw.circle(burst_surface, (255, 160, 70, alpha), center, int(TILE_SIZE * 0.8), width=6)
@@ -343,6 +407,7 @@ class Renderer:
         self.screen.blit(burst_surface, (0, 0))
 
     def _draw_boss_burst(self, effect: dict[str, object], alpha: int) -> None:
+        """보스급 강한 폭발 이펙트를 그린다."""
         surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
         center = self._tile_center(effect["position"])
         if effect.get("origin"):
@@ -359,6 +424,7 @@ class Renderer:
         self.screen.blit(surface, (0, 0))
 
     def _draw_teleport(self, effect: dict[str, object], alpha: int) -> None:
+        """순간이동 계열 시각 효과를 그린다."""
         surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
         center = self._tile_center(effect["position"])
         origin = effect.get("origin")
@@ -369,6 +435,7 @@ class Renderer:
         self.screen.blit(surface, (0, 0))
 
     def _draw_unit(self, unit) -> None:
+        """유닛 스프라이트와 체력 표시를 함께 그린다."""
         sprite = self._sprite_for_unit(unit)
         px = BOARD_ORIGIN[0] + unit.position[0] * TILE_SIZE
         py = BOARD_ORIGIN[1] + unit.position[1] * TILE_SIZE
@@ -394,9 +461,11 @@ class Renderer:
             self.screen.blit(shield_surface, shield_surface.get_rect(center=badge.center))
 
     def _tile_center(self, tile: tuple[int, int]) -> tuple[int, int]:
+        """타일 좌표를 화면 중심 픽셀 좌표로 변환한다."""
         return (BOARD_ORIGIN[0] + tile[0] * TILE_SIZE + TILE_SIZE // 2, BOARD_ORIGIN[1] + tile[1] * TILE_SIZE + TILE_SIZE // 2)
 
     def _draw_hp_bar(self, x: int, y: int, width: int, height: int, hp: int, max_hp: int) -> None:
+        """기본 체력 바를 그린다."""
         pygame.draw.rect(self.screen, HP_BAR_BG, pygame.Rect(x, y, width, height), border_radius=4)
         ratio = 0 if max_hp <= 0 else hp / max_hp
         fill_width = max(0, int(width * ratio))
@@ -406,18 +475,21 @@ class Renderer:
         pygame.draw.rect(self.screen, PANEL_BORDER, pygame.Rect(x, y, width, height), width=1, border_radius=4)
 
     def _draw_hp_meter(self, x: int, y: int, width: int, height: int, hp: int, max_hp: int) -> None:
+        """체력 바와 상태 점을 함께 그린다."""
         self._draw_hp_bar(x, y, width, height, hp, max_hp)
         ratio = 0 if max_hp <= 0 else hp / max_hp
         color = HP_BAR_FILL if ratio > 0.4 else HP_BAR_LOW
         pygame.draw.circle(self.screen, color, (x + width + 8, y + height // 2), 5)
 
     def _draw_single_line_fit(self, rect: pygame.Rect, font: pygame.font.Font, text: str, color: tuple[int, int, int]) -> None:
+        """한 줄 영역에 맞게 텍스트를 잘라서 그린다."""
         clipped = text
         while clipped and font.size(clipped)[0] > rect.width:
             clipped = clipped[:-4] + "..."
         self._draw_text(font, clipped, color, (rect.x, rect.y))
 
     def _draw_scrollbar(self, game, panel: pygame.Rect, visible_lines: int, total_lines: int) -> None:
+        """전투 로그 패널의 스크롤바를 그린다."""
         if total_lines <= visible_lines:
             return
         track = pygame.Rect(panel.right - 10, panel.y + 36, 4, panel.height - 46)
@@ -430,6 +502,7 @@ class Renderer:
         pygame.draw.rect(self.screen, LOG_SCROLLBAR_FG, pygame.Rect(track.x, thumb_y, track.width, thumb_height), border_radius=4)
 
     def _build_log_segments(self, logs: list[str], max_width: int) -> list[tuple[str, bool]]:
+        """로그를 줄바꿈된 세그먼트 목록으로 변환한다."""
         segments: list[tuple[str, bool]] = []
         for index, line in enumerate(logs):
             emphasized = index == len(logs) - 1
@@ -439,6 +512,7 @@ class Renderer:
         return segments
 
     def _wrap_text_pixels(self, font: pygame.font.Font, text: str, max_width: int) -> list[str]:
+        """픽셀 너비 기준으로 텍스트를 여러 줄로 감싼다."""
         if not text or font.size(text)[0] <= max_width:
             return [text]
         words = text.split(" ")
@@ -457,16 +531,48 @@ class Renderer:
         return lines
 
     def _draw_text(self, font: pygame.font.Font, text: str, color: tuple[int, int, int], pos: tuple[int, int]) -> None:
+        """좌상단 기준으로 텍스트를 그린다."""
         self.screen.blit(font.render(text, True, color), pos)
 
     def _draw_centered_text(self, font: pygame.font.Font, text: str, color: tuple[int, int, int], rect: pygame.Rect) -> None:
+        """사각형 중앙 기준으로 텍스트를 그린다."""
         surface = font.render(text, True, color)
         self.screen.blit(surface, surface.get_rect(center=rect.center))
 
     def _blit_tile_overlay(self, tile: tuple[int, int], overlay: pygame.Surface) -> None:
+        """타일 좌표에 오버레이 이미지를 붙인다."""
         self.screen.blit(overlay, (BOARD_ORIGIN[0] + tile[0] * TILE_SIZE, BOARD_ORIGIN[1] + tile[1] * TILE_SIZE))
 
+    def _draw_tutorial_overlay(self, game) -> None:
+        """튜토리얼 카드와 배경 베일을 화면 위에 그린다."""
+        card = getattr(game, "tutorial_card", lambda: None)()
+        if card is None:
+            return
+        veil = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        veil.fill((6, 10, 18, 170))
+        self.screen.blit(veil, (0, 0))
+
+        panel = pygame.Rect(212, 148, 856, 410)
+        pygame.draw.rect(self.screen, (18, 24, 38), panel, border_radius=22)
+        pygame.draw.rect(self.screen, (236, 194, 108), panel, width=3, border_radius=22)
+
+        badge = pygame.Rect(panel.x + 28, panel.y + 24, 122, 32)
+        pygame.draw.rect(self.screen, (47, 58, 82), badge, border_radius=16)
+        self._draw_centered_text(self.small_font, f"튜토리얼 {game.tutorial_index + 1}", (255, 232, 178), badge)
+
+        self._draw_text(self.title_font, str(card["title"]), TEXT_COLOR, (panel.x + 32, panel.y + 74))
+        body_lines = self._wrap_text_pixels(self.big_font, str(card["body"]), panel.width - 64)
+        y = panel.y + 126
+        for line in body_lines:
+            self._draw_text(self.big_font, line, (228, 234, 246), (panel.x + 32, y))
+            y += 38
+
+        tip_rect = pygame.Rect(panel.x + 32, panel.bottom - 92, panel.width - 64, 48)
+        pygame.draw.rect(self.screen, (34, 42, 61), tip_rect, border_radius=14)
+        self._draw_single_line_fit(tip_rect.move(12, 8), self.small_font, str(card["footer"]), (255, 224, 150))
+
     def _load_unit_sprites(self) -> dict[tuple[UnitType, Team], pygame.Surface]:
+        """기물과 진영별 스프라이트를 로드한다."""
         mapping = {
             (UnitType.KING, Team.PLAYER): self.sprite_dir / "king_blue.png",
             (UnitType.KING, Team.AI): self.sprite_dir / "king_red.png",
@@ -486,21 +592,25 @@ class Renderer:
         return {key: pygame.transform.scale(pygame.image.load(path).convert_alpha(), (TILE_SIZE, TILE_SIZE)) for key, path in mapping.items()}
 
     def _sprite_for_unit(self, unit) -> pygame.Surface:
+        """유닛 상태에 맞는 실제 스프라이트를 반환한다."""
         if getattr(unit, "boss", False) and unit.unit_type == UnitType.KING and unit.team == Team.AI and self.monster_king_sprite is not None:
             return self.monster_king_sprite
         return self.sprites[(unit.unit_type, unit.team)]
 
     def _make_overlay(self, color: tuple[int, int, int, int]) -> pygame.Surface:
+        """채워진 타일 오버레이 이미지를 생성한다."""
         surface = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
         pygame.draw.rect(surface, color, (6, 6, TILE_SIZE - 12, TILE_SIZE - 12), border_radius=10)
         return surface
 
     def _make_outline_overlay(self, color: tuple[int, int, int, int], inset: int = 12, width: int = 3) -> pygame.Surface:
+        """테두리형 타일 오버레이 이미지를 생성한다."""
         surface = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
         pygame.draw.rect(surface, color, (inset, inset, TILE_SIZE - inset * 2, TILE_SIZE - inset * 2), width=width, border_radius=8)
         return surface
 
     def _ensure_assets(self) -> None:
+        """필수 UI 에셋과 기본 스프라이트 파일 존재를 보장한다."""
         self.sprite_dir.mkdir(parents=True, exist_ok=True)
         self.ui_dir.mkdir(parents=True, exist_ok=True)
         board_path = self.ui_dir / "board.png"
@@ -522,6 +632,7 @@ class Renderer:
                 pygame.image.save(self._make_unit_sprite(color, glyph), path)
 
     def _make_unit_sprite(self, color: tuple[int, int, int], glyph: str) -> pygame.Surface:
+        """에셋이 없을 때 사용할 기본 원형 기물 스프라이트를 만든다."""
         surface = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
         pygame.draw.circle(surface, color, (TILE_SIZE // 2, TILE_SIZE // 2), TILE_SIZE // 2 - 6)
         pygame.draw.circle(surface, (240, 244, 255), (TILE_SIZE // 2, TILE_SIZE // 2), TILE_SIZE // 2 - 6, width=2)

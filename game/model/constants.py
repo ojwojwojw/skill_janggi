@@ -52,8 +52,8 @@ OBSTACLE_EDGE = (138, 148, 176)
 RIVER_TILE = (56, 118, 190)
 RIVER_TILE_DARK = (35, 82, 144)
 
-DRAFT_BUDGET = 17
-DRAFT_SIZE = 7
+DRAFT_BUDGET = 22
+DRAFT_SIZE = 9
 
 DIFFICULTY_LABELS = {
     1: "매우 쉬움",
@@ -66,34 +66,38 @@ DIFFICULTY_LABELS = {
 }
 
 AI_BUDGET_BY_DIFFICULTY = {
-    1: 17,
-    2: 17,
-    3: 17,
-    4: 18,
-    5: 19,
-    6: 20,
-    7: 23,
+    1: 22,
+    2: 22,
+    3: 22,
+    4: 23,
+    5: 24,
+    6: 25,
+    7: 28,
 }
 
 
 class Team(Enum):
+    """전투 참가 진영을 나타내는 열거형."""
     PLAYER = auto()
     AI = auto()
 
 
 class GameState(Enum):
+    """메뉴, 플레이어 턴, AI 턴, 종료 상태를 나타내는 열거형."""
     PLAYER_TURN = auto()
     AI_TURN = auto()
     GAME_OVER = auto()
 
 
 class ActionMode(Enum):
+    """선택된 유닛의 현재 행동 모드를 나타내는 열거형."""
     MOVE = auto()
     ATTACK = auto()
     SKILL = auto()
 
 
 class UnitType(Enum):
+    """게임에 등장하는 기물 종류를 정의한 열거형."""
     KING = auto()
     SWORDMAN = auto()
     ARCHER = auto()

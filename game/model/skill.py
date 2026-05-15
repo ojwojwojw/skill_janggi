@@ -2,17 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from game.constants import UnitType
+from game.model.constants import UnitType
 
 
 @dataclass(frozen=True, slots=True)
 class Skill:
+    """스킬의 사거리, 쿨다운, 범위 정보를 담는 데이터 객체."""
     name: str
     cooldown: int
     range: int
     description: str
 
     def can_use(self, current_cooldown: int) -> bool:
+        """현재 쿨다운 기준으로 스킬 사용 가능 여부를 반환한다."""
         return current_cooldown <= 0
 
 
